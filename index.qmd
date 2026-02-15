@@ -14,7 +14,7 @@ listing:
   id: blog-listing
   type: grid
   contents:
-    - blog/*
+    - blog/*.qmd
 ---
 
 :::{#hero-heading}
