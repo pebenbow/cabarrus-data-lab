@@ -1,0 +1,27 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Cabarrus Data Lab"
+  site-url: https://cabarrusdatalab.com
+  open-graph: true # https://quarto.org/docs/websites/website-tools.html#open-graph
+  page-footer:
+    right: "Made with Quarto"
+    background: "#0f1012"
+    foreground: "#ffffff"
+
+  navbar:
+    right:
+      - text: Home
+        href: index.qmd
+
+format:
+  html:
+    backgroundcolor: "#e6e6e6"
+    fontcolor: "black"
+    linkcolor: "black"
+    mainfont: "Atkinson Hyperlegible"
+    fontsize: 16px
+    theme: [cosmo, styles.scss]
+

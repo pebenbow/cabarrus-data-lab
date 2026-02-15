@@ -1,0 +1,17 @@
+---
+title: "Cabarrus Data Lab"
+format: html
+filters:
+  - accordion
+about:
+  id: hero-heading
+  template: jolla
+  image: img/cabarrusdatalab.png
+  image-shape: rectangle
+  image-width: 75%
+  image-title: "Cabarrus Data Lab logo"
+---
+
+:::{#hero-heading}
+:::
+
