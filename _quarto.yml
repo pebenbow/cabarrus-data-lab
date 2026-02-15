@@ -7,6 +7,7 @@ website:
   site-url: https://cabarrusdatalab.com
   repo-url: https://github.com/pebenbow/cabarrus-data-lab
   repo-actions: [source, issue]
+  image: "img/cabarrusdatalab.png"
   open-graph: true # https://quarto.org/docs/websites/website-tools.html#open-graph
   page-footer:
     right: "Made with Quarto"

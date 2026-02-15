@@ -13,6 +13,11 @@ about:
 listing:
   id: blog-listing
   type: grid
+  sort: "date desc"
+  sort-ui: false
+  filter-ui: false
+  max-items: 3
+  image-placeholder: "/img/cabarrusdatalab.png"
   contents:
     - blog/posts/*.qmd
 ---

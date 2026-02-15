@@ -4,6 +4,7 @@ format: html
 listing:
   sort: "date desc"
   contents: "posts/*.qmd"
+  image-placeholder: "../img/cabarrusdatalab.png"
   sort-ui: false
   filter-ui: false
   categories: true
