@@ -14,15 +14,16 @@ listing:
   id: blog-listing
   type: grid
   contents:
-    - blog/*.qmd
+    - blog/posts/*.qmd
 ---
 
 :::{#hero-heading}
 Cabarrus Data Lab is an independent, non-partisan venture aimed at using data to improve awareness of social and economic stories in Cabarrus County, North Carolina.
 :::
 
-## Blog
+## Latest Blog Posts
 
 ::: {#blog-listing}
 :::
 
+[Browse all blog posts](blog/index.qmd){target="_blank"}

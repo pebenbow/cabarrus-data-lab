@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>Cabarrus Data Lab</title>
+<link>https://cabarrusdatalab.com/blog/</link>
+<atom:link href="https://cabarrusdatalab.com/blog/index.xml" rel="self" type="application/rss+xml"/>
+<description></description>
+<generator>quarto-1.6.40</generator>
+<lastBuildDate>Sun, 22 Feb 2026 05:00:00 GMT</lastBuildDate>
+<item>
+  <title>Introduction</title>
+  <dc:creator>Pete Benbow</dc:creator>
+  <link>https://cabarrusdatalab.com/blog/posts/0002-intro.html</link>
+  <description><![CDATA[ 
+
+
+
+
+
+
+
+ ]]></description>
+  <guid>https://cabarrusdatalab.com/blog/posts/0002-intro.html</guid>
+  <pubDate>Sun, 22 Feb 2026 05:00:00 GMT</pubDate>
+</item>
+<item>
+  <title>Announcing Cabarrus Data Lab</title>
+  <dc:creator>Pete Benbow</dc:creator>
+  <link>https://cabarrusdatalab.com/blog/posts/0001-announcing-cdl.html</link>
+  <description><![CDATA[ 
+
+
+
+
+<p><img src="https://cabarrusdatalab.com/img/cabarrusdatalab.png" class="img-fluid"></p>
+<p>I’m happy to announce the official launch of Cabarrus Data Lab!</p>
+
+
+
+ ]]></description>
+  <guid>https://cabarrusdatalab.com/blog/posts/0001-announcing-cdl.html</guid>
+  <pubDate>Sat, 21 Feb 2026 05:00:00 GMT</pubDate>
+</item>
+</channel>
+</rss>

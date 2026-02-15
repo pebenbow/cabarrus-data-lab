@@ -1,0 +1,12 @@
+---
+title: "Announcing Cabarrus Data Lab"
+author: Pete Benbow
+date: Feb 21, 2026
+format: html
+---
+
+![](../../img/cabarrusdatalab.png)
+
+I'm happy to announce the official launch of Cabarrus Data Lab!
+
+
