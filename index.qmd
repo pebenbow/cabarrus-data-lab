@@ -10,9 +10,19 @@ about:
   image-shape: rectangle
   image-width: 75%
   image-title: "Cabarrus Data Lab logo"
+listing:
+  id: blog-listing
+  type: grid
+  contents:
+    - blog/*
 ---
 
 :::{#hero-heading}
 Cabarrus Data Lab is an independent, non-partisan venture aimed at using data to improve awareness of social and economic stories in Cabarrus County, North Carolina.
+:::
+
+## Blog
+
+::: {#blog-listing}
 :::
 

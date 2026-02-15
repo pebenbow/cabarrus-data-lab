@@ -2,10 +2,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://cabarrusdatalab.com/index.html</loc>
-    <lastmod>2026-02-15T16:30:09.509Z</lastmod>
+    <lastmod>2026-02-15T16:33:32.285Z</lastmod>
   </url>
   <url>
     <loc>https://cabarrusdatalab.com/about.html</loc>
     <lastmod>2026-02-15T16:26:03.871Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/blog/0001-announcing-cdl.html</loc>
+    <lastmod>2026-02-15T16:38:47.215Z</lastmod>
   </url>
 </urlset>
