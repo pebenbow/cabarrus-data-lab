@@ -1,0 +1,261 @@
+---
+title: "Home Prices, Rents & Wages in Cabarrus County"
+subtitle: "How has housing affordability changed over the past two decades?"
+description: "Median home values and rents in Cabarrus County have outpaced income growth since 2006, pushing the home price-to-income ratio well above the traditional affordability threshold."
+categories: [housing, wages, affordability]
+image: "../img/cabarrusdatalab.png"
+format:
+  typst:
+    fontsize: "10pt"
+    margin:
+      top: "2.6cm"
+      bottom: "2cm"
+      left: "1.8cm"
+      right: "1.8cm"
+    template-partials:
+      - typst-template.typ
+    include-in-header:
+      text: |
+        #let cdl-blue   = rgb("#0336ff")
+        #let cdl-dark   = rgb("#22211d")
+        #let cdl-light  = rgb("#dce8ff")
+        #let cdl-orange = rgb("#e05c2a")
+
+        // Page chrome: header and footer
+        #set page(
+          paper: "us-letter",
+          header: [
+            #set text(size: 9pt)
+            #grid(
+              columns: (1fr, auto),
+              column-gutter: 1em,
+              [
+                #text(fill: cdl-blue, weight: "bold")[Cabarrus Data Lab]
+                #h(0.4em)#text(fill: luma(80))[| Data Brief \#2]
+              ],
+              text(fill: luma(130))[April 2026]
+            )
+            #v(-0.5em)
+            #line(length: 100%, stroke: cdl-blue + 1.5pt)
+          ],
+          footer: context [
+            #line(length: 100%, stroke: luma(210) + 0.5pt)
+            #v(-0.4em)
+            #set text(size: 7.5pt, fill: luma(130))
+            #grid(
+              columns: (1fr, auto),
+              [cabarrusdatalab.com #h(1em) Source: U.S. Census Bureau, ACS 1-Year Estimates (2006–2023)],
+              [#counter(page).display()]
+            )
+          ]
+        )
+
+        // Heading styles
+        #show heading.where(level: 2): it => block(above: 0.9em, below: 0.35em)[
+          #text(fill: cdl-blue, size: 11pt, weight: "bold")[#it.body]
+        ]
+
+        #show heading.where(level: 3): it => block(above: 0.6em, below: 0.2em)[
+          #text(fill: cdl-dark, size: 9.5pt, weight: "bold")[#it.body]
+        ]
+
+        // Stat highlight box (used for the three key-stat pull-quotes)
+        #let statbox(number, label) = block(
+          width: 100%,
+          fill: cdl-light,
+          stroke: (left: cdl-blue + 3pt),
+          inset: (x: 10pt, y: 8pt),
+          radius: (right: 4pt),
+        )[
+          #text(fill: cdl-blue, size: 20pt, weight: "bold")[#number]
+          #v(-0.2em)
+          #set text(size: 8pt, fill: cdl-dark)
+          #label
+        ]
+
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(tidyverse)
+library(scales)
+library(duckdb)
+library(DBI)
+```
+
+```{r load-data}
+con     <- dbConnect(duckdb(),
+             here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+             read_only = TRUE)
+housing <- dbReadTable(con, "cabarrus_housing")
+dbDisconnect(con, shutdown = TRUE)
+
+yr_latest      <- max(housing$year)
+latest         <- housing |> filter(year == yr_latest)
+earliest       <- housing |> filter(year == 2006)
+home_pct       <- round((latest$home_value / earliest$home_value - 1) * 100)
+income_pct     <- round((latest$med_income / earliest$med_income - 1) * 100)
+rent_pct       <- round((latest$annual_rent / earliest$annual_rent - 1) * 100)
+ratio_latest   <- round(latest$home_to_income, 1)
+ratio_earliest <- round(earliest$home_to_income, 1)
+yr_crossed_3   <- housing |> filter(home_to_income >= 3) |> pull(year) |> min(na.rm = TRUE)
+gap_pct        <- home_pct - income_pct
+
+brief_theme <- theme_minimal(base_size = 9) +
+  theme(
+    plot.background    = element_rect(fill = "white", color = NA),
+    panel.background   = element_rect(fill = "white", color = NA),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.caption       = element_text(color = "gray50", size = 7, hjust = 0,
+                                      margin = margin(t = 4)),
+    axis.text          = element_text(color = "#22211d"),
+    legend.position    = "bottom",
+    legend.key.width   = unit(1.5, "cm"),
+    legend.text        = element_text(size = 8)
+  )
+```
+
+Cabarrus County has grown rapidly since the mid-2000s, but that growth has come at a mounting cost for residents seeking housing. Median home values and rents have far outpaced income gains, squeezing household budgets and putting homeownership increasingly out of reach. This brief uses U.S. Census Bureau data to track how these trends have unfolded from 2006 through `r yr_latest`.
+
+```{r stat-boxes}
+#| results: asis
+
+# Inline R doesn't evaluate inside {=typst} raw blocks, so we build the
+# Typst grid dynamically and emit it as raw content via cat().
+rent_ratio <- round(rent_pct / income_pct, 1)
+
+typst_grid <- paste0(
+  "\n```{=typst}\n",
+  "#v(0.4em)\n",
+  "#grid(\n",
+  "  columns: (1fr, 1fr, 1fr),\n",
+  "  column-gutter: 0.8em,\n",
+  "  statbox(\n",
+  "    [+", home_pct, "%],\n",
+  "    [Median home values since 2006, vs.\\ +", income_pct, "% for household incomes]\n",
+  "  ),\n",
+  "  statbox(\n",
+  "    [+", rent_pct, "%],\n",
+  "    [Annual rents since 2006, roughly ", rent_ratio, "\u00d7 faster than wages]\n",
+  "  ),\n",
+  "  statbox(\n",
+  "    [", ratio_latest, "\u00d7],\n",
+  "    [Price-to-income ratio in ", yr_latest, ", up from ", ratio_earliest, "\u00d7 in 2006]\n",
+  "  )\n",
+  ")\n",
+  "#v(0.6em)\n",
+  "```\n"
+)
+cat(typst_grid)
+```
+
+## Housing Costs vs. Wage Growth, 2006–`r yr_latest`
+
+```{r indexed-chart}
+#| fig-width: 7
+#| fig-height: 3.6
+#| fig-cap: "Index where 2006 = 100. ACS 1-year estimates were not collected in 2020 (COVID-related disruption)."
+
+plot_data <- housing |>
+  select(year, idx_home, idx_rent, idx_income) |>
+  pivot_longer(
+    cols      = starts_with("idx_"),
+    names_to  = "metric",
+    values_to = "index"
+  ) |>
+  mutate(
+    metric = case_when(
+      metric == "idx_home"   ~ "Median Home Value",
+      metric == "idx_rent"   ~ "Annual Rent",
+      metric == "idx_income" ~ "Median Household Income"
+    ),
+    metric = factor(
+      metric,
+      levels = c("Median Home Value", "Annual Rent", "Median Household Income")
+    )
+  )
+
+y_max <- max(plot_data$index, na.rm = TRUE)
+
+ggplot(plot_data, aes(x = year, y = index, color = metric)) +
+  annotate("rect",
+    xmin = 2007.5, xmax = 2009.5, ymin = -Inf, ymax = Inf,
+    fill = "gray88", alpha = 0.7
+  ) +
+  annotate("text",
+    x = 2008.5, y = y_max * 0.97,
+    label = "Great\nRecession", size = 2.1, color = "gray50", hjust = 0.5
+  ) +
+  geom_hline(yintercept = 100, linetype = "dashed", color = "gray60", linewidth = 0.4) +
+  geom_line(linewidth = 1.1, na.rm = TRUE) +
+  geom_point(size = 1.8, na.rm = TRUE) +
+  scale_color_manual(
+    values = c(
+      "Median Home Value"       = "#0336ff",
+      "Annual Rent"             = "#e05c2a",
+      "Median Household Income" = "#22211d"
+    )
+  ) +
+  scale_x_continuous(breaks = seq(2006, 2023, 2)) +
+  labs(x = NULL, y = "Index (2006 = 100)", color = NULL) +
+  brief_theme
+```
+
+::: {.callout-important appearance="simple"}
+**The wage-housing gap.** Between 2006 and `r yr_latest`, median home values in Cabarrus County outpaced household income growth by **`r gap_pct` percentage points**. That gap widened sharply after 2012 and accelerated further during the post-pandemic housing surge of 2020–2022.
+:::
+
+## The Affordability Gap: Home Price-to-Income Ratio
+
+```{r price-ratio-chart}
+#| fig-width: 7
+#| fig-height: 2.5
+#| fig-cap: "Median home value divided by median household income. Economists traditionally use 3× as the upper boundary of affordability for homeownership."
+
+ggplot(housing, aes(x = year, y = home_to_income)) +
+  annotate("rect",
+    xmin = -Inf, xmax = Inf, ymin = 3, ymax = Inf,
+    fill = "#fce3d7", alpha = 0.45
+  ) +
+  geom_area(fill = "#dce8ff", alpha = 0.55) +
+  geom_hline(yintercept = 3, linetype = "dashed", color = "#e05c2a", linewidth = 0.7) +
+  annotate("text",
+    x = 2020, y = 3.12,
+    label = "Unaffordable (above 3×)",
+    size = 2.1, color = "#e05c2a", hjust = 0
+  ) +
+  geom_line(color = "#0336ff", linewidth = 1.2) +
+  geom_point(color = "#0336ff", size = 1.8) +
+  scale_x_continuous(breaks = seq(2006, 2023, 2)) +
+  scale_y_continuous(
+    labels = function(x) paste0(x, "\u00d7"),
+    limits = c(2.4, NA)
+  ) +
+  labs(x = NULL, y = "Price-to-Income Ratio") +
+  brief_theme
+```
+
+```{r summary-table}
+#| tbl-cap: "Nominal (not inflation-adjusted) values at selected years. Source: American Community Survey, 1-Year Estimates, U.S. Census Bureau."
+
+key_years <- c(2006, 2010, 2015, 2019, 2023)
+
+housing |>
+  filter(year %in% key_years) |>
+  mutate(
+    `Home Value`    = dollar(home_value,  accuracy = 1000),
+    `Annual Rent`   = dollar(annual_rent, accuracy = 100),
+    `Median Income` = dollar(med_income,  accuracy = 1000),
+    `Price/Income`  = paste0(round(home_to_income, 1), "\u00d7")
+  ) |>
+  select(Year = year, `Home Value`, `Annual Rent`, `Median Income`, `Price/Income`) |>
+  knitr::kable(align = c("l", "r", "r", "r", "r"))
+```
+
+::: {.callout-note appearance="simple"}
+**About this brief.** Data are drawn from the U.S. Census Bureau's American Community Survey (ACS), 1-year estimates, for Cabarrus County, NC. Variables: B25077 (median owner-occupied home value), B25064 (median gross rent), B19013 (median household income). ACS 1-year estimates were not released for 2020. All values are nominal and not adjusted for inflation. The 3× price-to-income threshold follows the convention used by the National Association of Realtors and urban economists.
+:::

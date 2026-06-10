@@ -1,0 +1,147 @@
+---
+title: "How much do Cabarrus County residents pay for housing?"
+format: html
+author: Pete Benbow
+date: Feb 21, 2026
+---
+
+# Key research questions
+
+- What do Cabarrus county renters and homeowners pay for housing?
+- How has this changed over time?
+
+```{r setup}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(tidycensus)
+library(viridis)
+
+my_palette <- rev(viridis(8))[c(-1, -9)]
+
+my_scale <- scale_fill_manual(
+  values = my_palette,
+  name = "% of Income Spent on Housing Costs",
+  guide = guide_legend(
+    keyheight = unit(3, units = "mm"),
+    keywidth = unit(12, units = "mm"),
+    label.position = "bottom", 
+    title.position = "top", 
+    nrow = 1,
+    reverse = TRUE
+  )
+)
+
+my_theme <- theme(
+  legend.position = "top",
+  legend.justification = "center",
+  legend.box.margin = margin(t = 1, b = 1, unit = "pt"),  # Add spacing
+  text = element_text(color = "#22211d"),
+  plot.background = element_rect(fill = "#f5f5f2", color = NA),
+  panel.background = element_rect(fill = "#f5f5f2", color = NA),
+  legend.background = element_rect(fill = "#f5f5f2", color = NA),
+  plot.title = element_text(
+    size = 16, 
+    hjust = 0, 
+    color = "#22211d",
+    margin = margin(b = 0.3, t = 0.2, l = 0, r = 2, unit = "cm")
+  ),
+  plot.subtitle = element_text(
+    margin = margin(b = 0.3, l = 0, r = 2, unit = "cm")
+  )
+)
+```
+
+```{r}
+#| label: load-data
+#| message: false
+#| warning: false
+#| include: false
+
+vars <- load_variables(
+  year    = 2024,
+  dataset = "acs5"
+)
+
+df <- get_acs(
+  geography = "county",
+  year      = 2024,
+  state     = "NC",
+  county    = "Cabarrus",
+  survey    = "acs5",
+  table     = "B25074",
+  summary_var = "B25074_001"
+)
+
+combined <- df |>
+  left_join(vars, join_by(variable == name)) |>
+  filter(
+    !str_detect(label, "Not computed"), 
+    !endsWith(label, ":")
+  ) |>
+  mutate(
+    income_level = str_split(label, ":!!", simplify = TRUE)[, 2],
+    pct_income   = str_split(label, ":!!", simplify = TRUE)[, 3],
+    pct_income   = str_replace_all(pct_income,".0 "," "),
+    pct_income   = str_replace_all(pct_income," percent","%"),
+    income_level   = str_replace_all(income_level,",000","K")
+  ) |>
+  select(concept, income_level, pct_income, estimate, moe) |>
+  mutate(
+    factor_inclevel = factor(
+      x = income_level, 
+      levels = c(
+        "Less than $10K",
+        "$10K to $19,999",
+        "$20K to $34,999",
+        "$35K to $49,999",
+        "$50K to $74,999",
+        "$75K to $99,999",
+        "$100K or more"
+      )
+    ),
+    factor_pctincome = factor(
+      x = pct_income, 
+      levels = c(
+        "Less than 20%",
+        "20 to 24.9%",
+        "25 to 29.9%",
+        "30 to 34.9%",
+        "35 to 39.9%",
+        "40 to 49.9%",
+        "50% or more"
+      )
+    )
+  )
+
+
+```
+
+```{r}
+#| echo: false
+
+v_concept = combined$concept[1]
+
+ggplot(data = combined,
+    aes(
+      x    = estimate,
+      y    = factor_inclevel, 
+      fill = factor_pctincome
+    )
+  ) +
+  geom_col(position = "fill") + 
+  scale_x_continuous(
+    labels = scales::percent
+  ) + 
+  labs(
+    title    = "What do Cabarrus renters spend on housing?",
+    subtitle = "Source: American Community Survey (census.gov)",
+    x        = "% of Households",
+    y        = "Income Level",
+    caption  = v_concept
+  ) + 
+  my_scale + 
+  my_theme
+
+```

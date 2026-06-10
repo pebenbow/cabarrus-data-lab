@@ -1,0 +1,41 @@
+table: cabarrus_housing
+title: "Cabarrus County Housing Affordability"
+description: >
+  Annual median home value, gross rent, and household income for Cabarrus
+  County, with derived affordability ratios and an index series anchored
+  to 2006. Covers 2006-2023 with no 2020 release (ACS suspended that year).
+source: >
+  U.S. Census Bureau, American Community Survey (ACS) 1-Year Estimates,
+  2006-2023. Tables B25077 (median home value), B25064 (median gross rent),
+  B19013 (median household income). No ACS 1-Year was published for 2020.
+columns:
+  - name: year
+    type: integer
+    description: "ACS 1-Year survey year. Ranges from 2006 to 2023; 2020 is absent."
+  - name: home_value
+    type: numeric
+    description: "Median owner-occupied home value in nominal dollars (ACS table B25077)."
+  - name: gross_rent
+    type: numeric
+    description: "Median gross monthly rent in nominal dollars (ACS table B25064)."
+  - name: annual_rent
+    type: numeric
+    description: "Estimated annual rent cost: gross_rent * 12."
+  - name: med_income
+    type: numeric
+    description: "Median household income in nominal dollars (ACS table B19013)."
+  - name: home_to_income
+    type: numeric
+    description: "Price-to-income ratio: home_value / med_income. Values above 3.0 are conventionally considered unaffordable."
+  - name: rent_to_income
+    type: numeric
+    description: "Rent burden ratio: annual_rent / med_income. Values above 0.30 indicate households spending more than 30% of income on rent."
+  - name: idx_home
+    type: numeric
+    description: "Home value index, 2006 = 100. Computed as home_value / home_value[year==2006] * 100."
+  - name: idx_rent
+    type: numeric
+    description: "Annual rent index, 2006 = 100. Computed as annual_rent / annual_rent[year==2006] * 100."
+  - name: idx_income
+    type: numeric
+    description: "Median income index, 2006 = 100. Computed as med_income / med_income[year==2006] * 100."

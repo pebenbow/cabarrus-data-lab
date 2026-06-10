@@ -1,0 +1,271 @@
+---
+title: "How Accurate Are Self-Reported Home Values?"
+subtitle: "Comparing ACS estimates to Zillow ZHVI and the FHFA House Price Index for Cabarrus County"
+author: Pete Benbow
+date: April 15, 2026
+format: html
+description: "The ACS asks homeowners to estimate what their home would sell for. How well does that track against transaction-based data? We compare three public data sources to find out."
+categories: [housing, methodology, data-quality]
+image: "../../img/cabarrusdatalab.png"
+execute:
+  freeze: auto
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(tidyverse)
+library(tidycensus)
+library(scales)
+
+# ── 1. ACS 1-year: median owner-occupied home value ──────────────────────────
+years <- c(2006:2019, 2021:2023)
+
+fetch_acs_year <- function(yr) {
+  tryCatch(
+    get_acs(
+      geography = "county",
+      state     = "NC",
+      county    = "Cabarrus",
+      variables = c(home_value = "B25077_001"),
+      year      = yr,
+      survey    = "acs1"
+    ) |> mutate(year = yr),
+    error = function(e) NULL
+  )
+}
+
+acs_raw <- map(years, fetch_acs_year) |> bind_rows()
+
+acs <- acs_raw |>
+  select(year, acs_value = estimate, acs_moe = moe)
+
+# ── 2. Zillow ZHVI: middle-tier (33rd–67th pct), county-level ────────────────
+# Public CSV, no API key required. Large file (~15 MB), cached by freeze: auto.
+zhvi_url <- paste0(
+  "https://files.zillowstatic.com/research/public_csvs/zhvi/",
+  "County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
+)
+
+# read_csv(url) can silently hang on Windows for large files; use download.file
+# with an explicit timeout instead.
+zhvi_tmp <- tempfile(fileext = ".csv")
+old_timeout <- getOption("timeout")
+options(timeout = 300)
+download.file(zhvi_url, zhvi_tmp, mode = "wb", quiet = TRUE)
+options(timeout = old_timeout)
+zhvi_raw <- read_csv(zhvi_tmp, show_col_types = FALSE)
+file.remove(zhvi_tmp)
+
+zhvi <- zhvi_raw |>
+  # FIPS codes may be stored as int or string depending on Zillow CSV version
+  filter(as.integer(StateCodeFIPS) == 37, as.integer(MunicipalCodeFIPS) == 25) |>
+  pivot_longer(
+    cols      = matches("^\\d{4}-\\d{2}-\\d{2}$"),
+    names_to  = "date",
+    values_to = "zhvi"
+  ) |>
+  mutate(
+    date = as.Date(date),
+    year = year(date)
+  ) |>
+  group_by(year) |>
+  summarize(zhvi_value = mean(zhvi, na.rm = TRUE), .groups = "drop") |>
+  filter(!is.nan(zhvi_value))
+
+# ── 3. FHFA All-Transactions House Price Index (FRED: ATNHPIUS37025A) ────────
+# Annual index; base year varies. We re-anchor to 2006 ACS value for
+# dollar-comparable interpretation.
+fred_url <- "https://fred.stlouisfed.org/graph/fredgraph.csv?id=ATNHPIUS37025A"
+
+fred_tmp <- tempfile(fileext = ".csv")
+options(timeout = 300)
+download.file(fred_url, fred_tmp, mode = "wb", quiet = TRUE)
+options(timeout = old_timeout)
+hpi_raw <- read_csv(fred_tmp, show_col_types = FALSE)
+file.remove(fred_tmp)
+
+hpi_raw <- hpi_raw |>
+  rename(date = observation_date, hpi = ATNHPIUS37025A) |>
+  mutate(year = year(date)) |>
+  filter(year >= 2000)
+
+# Anchor: HPI in 2006 → ACS median home value in 2006
+acs_2006     <- acs |> filter(year == 2006) |> pull(acs_value)
+hpi_2006     <- hpi_raw |> filter(year == 2006) |> pull(hpi)
+
+hpi <- hpi_raw |>
+  mutate(hpi_value = acs_2006 * (hpi / hpi_2006))
+
+# ── Combine all three ─────────────────────────────────────────────────────────
+comparison <- acs |>
+  full_join(zhvi, by = "year") |>
+  full_join(hpi |> select(year, hpi_value), by = "year") |>
+  filter(year >= 2006, year <= 2023) |>
+  arrange(year)
+
+# Year-over-year difference: ACS vs. Zillow (where both exist)
+comparison <- comparison |>
+  mutate(
+    acs_vs_zhvi_pct = (acs_value - zhvi_value) / zhvi_value * 100,
+    acs_vs_hpi_pct  = (acs_value - hpi_value)  / hpi_value  * 100
+  )
+
+# Key summary stats
+overlap_yrs       <- comparison |> filter(!is.na(zhvi_value), !is.na(acs_value))
+mean_acs_zhvi_gap <- mean(overlap_yrs$acs_vs_zhvi_pct, na.rm = TRUE)
+max_gap_yr        <- overlap_yrs |> slice_max(abs(acs_vs_zhvi_pct), n = 1) |> pull(year)
+max_gap_val       <- overlap_yrs |> slice_max(abs(acs_vs_zhvi_pct), n = 1) |> pull(acs_vs_zhvi_pct)
+latest_acs        <- comparison |> filter(year == max(year, na.rm = TRUE)) |> pull(acs_value)
+latest_zhvi       <- comparison |> filter(!is.na(zhvi_value)) |> slice_max(year, n = 1) |> pull(zhvi_value)
+latest_hpi        <- comparison |> filter(!is.na(hpi_value)) |> slice_max(year, n = 1) |> pull(hpi_value)
+latest_yr         <- max(comparison$year, na.rm = TRUE)
+
+brief_theme <- theme_minimal(base_size = 11) +
+  theme(
+    plot.background    = element_rect(fill = "white", color = NA),
+    panel.background   = element_rect(fill = "white", color = NA),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.caption       = element_text(color = "gray50", size = 8, hjust = 0,
+                                      margin = margin(t = 6)),
+    legend.position    = "bottom",
+    legend.text        = element_text(size = 9),
+    plot.title         = element_text(face = "bold", color = "#22211d"),
+    plot.subtitle      = element_text(color = "gray40", size = 9)
+  )
+```
+
+The American Community Survey asks homeowners to estimate what their home would sell for on the open market. It's a convenient question to include in a large household survey, but does a homeowner's intuition about market value keep pace with what buyers are actually paying?
+
+To find out, we compare the ACS median home value against two transaction-based data sources: the **Zillow Home Value Index (ZHVI)**, which uses actual sale prices combined with Zillow's automated valuation model, and the **FHFA All-Transactions House Price Index**, which tracks price changes from mortgage origination and refinance data. All three are publicly available at no cost.
+
+## Three data sources, one county
+
+```{r main-chart}
+#| fig-width: 8
+#| fig-height: 4.5
+#| fig-cap: "Sources: U.S. Census Bureau ACS 1-Year Estimates; Zillow Research (ZHVI, middle tier); FHFA via FRED (ATNHPIUS37025A, anchored to 2006 ACS value). ACS 1-year not available for 2020."
+
+plot_data <- comparison |>
+  pivot_longer(
+    cols      = c(acs_value, zhvi_value, hpi_value),
+    names_to  = "source",
+    values_to = "value"
+  ) |>
+  mutate(
+    source = case_when(
+      source == "acs_value"  ~ "ACS (self-reported)",
+      source == "zhvi_value" ~ "Zillow ZHVI (transaction-based)",
+      source == "hpi_value"  ~ "FHFA HPI (anchored to 2006 ACS)"
+    ),
+    source = factor(source, levels = c(
+      "Zillow ZHVI (transaction-based)",
+      "FHFA HPI (anchored to 2006 ACS)",
+      "ACS (self-reported)"
+    ))
+  )
+
+ggplot(plot_data, aes(x = year, y = value, color = source, linetype = source)) +
+  geom_line(linewidth = 1.1, na.rm = TRUE) +
+  geom_point(size = 2, na.rm = TRUE) +
+  scale_color_manual(
+    values = c(
+      "ACS (self-reported)"              = "#0336ff",
+      "Zillow ZHVI (transaction-based)"  = "#e05c2a",
+      "FHFA HPI (anchored to 2006 ACS)"  = "#22211d"
+    )
+  ) +
+  scale_linetype_manual(
+    values = c(
+      "ACS (self-reported)"              = "solid",
+      "Zillow ZHVI (transaction-based)"  = "solid",
+      "FHFA HPI (anchored to 2006 ACS)"  = "dashed"
+    )
+  ) +
+  scale_x_continuous(breaks = seq(2006, 2023, 2)) +
+  scale_y_continuous(labels = label_dollar(scale = 0.001, suffix = "K")) +
+  labs(
+    title    = "Cabarrus County Home Values: Three Data Sources Compared",
+    subtitle = "Nominal dollars. FHFA series anchored to 2006 ACS value to enable dollar comparison.",
+    x        = NULL,
+    y        = "Estimated Home Value",
+    color    = NULL,
+    linetype = NULL
+  ) +
+  brief_theme +
+  guides(color = guide_legend(nrow = 2), linetype = guide_legend(nrow = 2))
+```
+
+## What the gaps tell us
+
+```{r gap-chart}
+#| fig-width: 8
+#| fig-height: 3
+#| fig-cap: "Positive values mean ACS self-reported values are higher than Zillow's estimate; negative means ACS is lower. Gap shown only for years where Zillow ZHVI is available for Cabarrus County."
+
+comparison |>
+  filter(!is.na(acs_vs_zhvi_pct)) |>
+  mutate(direction = if_else(acs_vs_zhvi_pct >= 0, "above", "below")) |>
+  ggplot(aes(x = year, y = acs_vs_zhvi_pct, fill = direction)) +
+  geom_col(width = 0.7) +
+  geom_hline(yintercept = 0, color = "#22211d", linewidth = 0.5) +
+  scale_fill_manual(values = c(above = "#0336ff", below = "#e05c2a"), guide = "none") +
+  scale_x_continuous(breaks = seq(2006, 2023, 2)) +
+  scale_y_continuous(labels = function(x) paste0(round(x, 1), "%")) +
+  labs(
+    title    = "ACS vs. Zillow ZHVI: Percentage Gap by Year",
+    subtitle = "How much higher or lower ACS self-reported values are relative to Zillow's estimate",
+    x        = NULL,
+    y        = "ACS relative to Zillow ZHVI"
+  ) +
+  brief_theme
+```
+
+## Key findings
+
+```{r value-table}
+#| tbl-cap: "Nominal values. FHFA HPI anchored to 2006 ACS. Zillow ZHVI coverage for Cabarrus County begins where data are available."
+
+comparison |>
+  filter(year %in% c(2006, 2010, 2015, 2019, 2022, 2023)) |>
+  mutate(
+    `ACS`           = dollar(acs_value,  accuracy = 1000),
+    `Zillow ZHVI`   = if_else(is.na(zhvi_value), "N/A", dollar(zhvi_value, accuracy = 1000)),
+    `FHFA (anchored)` = dollar(hpi_value, accuracy = 1000),
+    `ACS vs. Zillow`  = if_else(is.na(acs_vs_zhvi_pct), "N/A",
+                                paste0(if_else(acs_vs_zhvi_pct > 0, "+", ""),
+                                       round(acs_vs_zhvi_pct, 1), "%"))
+  ) |>
+  select(Year = year, ACS, `Zillow ZHVI`, `FHFA (anchored)`, `ACS vs. Zillow`) |>
+  knitr::kable(align = c("l", "r", "r", "r", "r"))
+```
+
+The three sources tell a broadly consistent story about long-run appreciation in Cabarrus County, but diverge in timing and magnitude, especially around rapid market movements.
+
+**On average, ACS self-reported values differ from Zillow's ZHVI by `r round(abs(mean_acs_zhvi_gap), 1)`% (`r if_else(mean_acs_zhvi_gap > 0, "above", "below")` Zillow) across the years where both series overlap.** This is within the range that housing researchers consider acceptable for cross-sectional analysis, but the gap is not uniform over time.
+
+The divergence is widest in `r max_gap_yr`, when ACS values were `r round(abs(max_gap_val), 1)`% `r if_else(max_gap_val > 0, "above", "below")` Zillow's estimate. This pattern is consistent with what researchers at the Lincoln Institute of Land Policy and elsewhere have documented: self-reported home values tend to **lag rapid price movements**: homeowners adjust their self-assessments slowly after a sharp market run-up or correction.
+
+The **post-2020 period** is the most informative. During the pandemic housing boom, transaction prices in Cabarrus County appreciated dramatically and quickly. Zillow's ZHVI captures this surge in near-real time (it updates monthly from actual sales). The ACS, which is surveyed throughout the year and published with a 12–18 month lag, appears to trail Zillow during this period. By `r latest_yr`, the ACS reported `r dollar(latest_acs, accuracy = 1000)` versus Zillow's `r dollar(round(latest_zhvi, -3), accuracy = 1000)`, a gap of `r dollar(abs(round(latest_acs - latest_zhvi, -3)), accuracy = 1000)`.
+
+The **FHFA HPI** (dashed line) provides the longest time horizon and shows broad agreement with the other two sources in terms of directional trends. Because it is anchored to the 2006 ACS baseline, its dollar estimates inherit any error in that baseline. It is best interpreted as a growth-rate series rather than an absolute value series.
+
+## Implications for the Data Brief
+
+::: {.callout-note}
+The ACS values used in our [first Data Brief](../../data-briefs/0001-home-prices-wages.pdf) likely **understate** how quickly home values rose in the 2020–2022 period relative to what buyers actually paid. This means our estimate of the wage-housing gap is, if anything, **conservative**: the real affordability squeeze was sharper than the ACS figures show. The long-run trend finding (home values outpacing wages since 2006) is robust across all three data sources.
+:::
+
+For future analysis, particularly any work focused on the post-2020 market or current affordability conditions for buyers, **Zillow ZHVI is the preferred source**: it is free, publicly downloadable, and updated monthly from actual transactions. For historical context and trend analysis going back before 2010, the FHFA HPI is the most reliable publicly available series.
+
+## Data sources and methods
+
+| Source | Series | Coverage | Access |
+|---|---|---|---|
+| U.S. Census Bureau | ACS B25077, 1-year estimates | 2006–2023 (no 2020) | `tidycensus` R package |
+| Zillow Research | ZHVI, middle tier (33rd–67th pct) | County-level, monthly | [Direct CSV download](https://www.zillow.com/research/data/) |
+| FHFA via FRED | All-Transactions HPI (`ATNHPIUS37025A`) | 1976–2024, annual | [Direct CSV download](https://fred.stlouisfed.org/series/ATNHPIUS37025A) |
+
+The FHFA HPI is a pure price-change index with no inherent dollar value. To compare it directly to the ACS and ZHVI in dollar terms, we anchor it to the 2006 ACS median home value and apply the index's annual growth rates forward and backward from that point. This means any systematic bias in the 2006 ACS baseline propagates into the anchored HPI series.

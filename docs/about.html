@@ -38,7 +38,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-549806ee2085284f45b00abea8c6df48.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-463acdb7d33a78d36c23236640ac153b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-de0e249ca113c929cc6ac99ff5707cfd.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -98,8 +98,20 @@ ul.task-list li input[type="checkbox"] {
 <span class="menu-text">Home</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./research/index.html"> 
+<span class="menu-text">Research</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./stories/index.html"> 
+<span class="menu-text">Stories</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./blog/index.html"> 
 <span class="menu-text">Blog</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./data/index.html"> 
+<span class="menu-text">Data</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link active" href="./about.html" aria-current="page"> 
@@ -140,11 +152,88 @@ ul.task-list li input[type="checkbox"] {
 
 
 <p>The purpose of Cabarrus Data Lab is to collect, analyze, and share data and data-driven insights for the benefit of the citizens of Cabarrus County, North Carolina. The intended impact is to increase people’s overall data literacy and provide awareness of social and economic factors that affect their lives.</p>
-<p>Cabarrus Data Lab is a non-partisan project. Our only “ideology” is a commitment to the principles of <a href="#opendata">open data</a>, and a steadfast belief that knowledge is the best currency a citizen can have.</p>
+<p>Cabarrus Data Lab is a non-partisan project. Our only “ideology” is a commitment to objective analysis and the principles of <a href="#opendata">open data</a>, coupled with a steadfast belief that <strong>knowledge is the best currency a citizen can have</strong>.</p>
 <section id="opendata" class="level4">
 <h4 class="anchored" data-anchor-id="opendata">Open Data Principles</h4>
-<p>Lorem ipsum dolor sit amet, mel discere pertinax et. Ad pro mutat error similique. Mea vide justo ad, cum aperiam aliquid referrentur eu, pri et adhuc ceteros intellegat. An ius elit constituam, cum posse viderer ut, eum dicunt mandamus in.</p>
-<p>Vim cu voluptatum ullamcorper. Ex zril bonorum interpretaris his, stet efficiantur eam eu. Ius quodsi propriae recusabo in, natum summo ad vel, graece quaestio gubergren cum eu. No ius epicurei dissentiunt, odio assum aperiri ad mei, quot placerat cu his. Diceret civibus vis et. Sea in iusto mollis, ad wisi perpetua hendrerit duo, cum ad consul causae.</p>
+<p>Cabarrus Data Lab follows the six principles of the <a href="https://opendatacharter.org/principles/">Open Data Charter</a>.</p>
+<style>
+.odc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin: 1.5rem 0 2.25rem;
+}
+@media (max-width: 768px) {
+  .odc-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .odc-grid { grid-template-columns: 1fr; }
+}
+.odc-card {
+  border: 1px solid #dce8ff;
+  border-top: 3px solid #0336ff;
+  border-radius: 0 0 4px 4px;
+  padding: 1.1rem 1.1rem 1rem;
+}
+.odc-icon {
+  font-size: 1.6rem;
+  color: #0336ff;
+  margin-bottom: 0.45rem;
+  line-height: 1;
+}
+.odc-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: 0.35rem;
+  color: #22211d;
+}
+.odc-text {
+  font-size: 0.84rem;
+  color: #555;
+  line-height: 1.5;
+  margin: 0;
+}
+</style>
+
+<div class="odc-grid">
+
+  <div class="odc-card">
+    <div class="odc-icon"><i class="bi bi-unlock-fill"></i></div>
+    <div class="odc-title">Open by Default</div>
+    <p class="odc-text">Every dataset and analysis produced here is published without paywalls or registration. If we gathered it, you can have it.</p>
+  </div>
+
+  <div class="odc-card">
+    <div class="odc-icon"><i class="bi bi-calendar-check-fill"></i></div>
+    <div class="odc-title">Timely and Comprehensive</div>
+    <p class="odc-text">We refresh our datasets periodically from authoritative sources so findings reflect current conditions, not outdated snapshots.</p>
+  </div>
+
+  <div class="odc-card">
+    <div class="odc-icon"><i class="bi bi-people-fill"></i></div>
+    <div class="odc-title">Accessible and Usable</div>
+    <p class="odc-text">Datasets are published in standardized formats in a centralized location, and provided free of charge to anyone useful whether you are a planner, a journalist, or a concerned citizen.</p>
+  </div>
+
+  <div class="odc-card">
+    <div class="odc-icon"><i class="bi bi-arrow-left-right"></i></div>
+    <div class="odc-title">Comparable and Interoperable</div>
+    <p class="odc-text">By grounding our work in federal standards (Census Bureau, ACS, NLCD), every finding integrates directly with statewide and national data for meaningful comparison.</p>
+  </div>
+
+  <div class="odc-card">
+    <div class="odc-icon"><i class="bi bi-building"></i></div>
+    <div class="odc-title">For Improved Governance</div>
+    <p class="odc-text">Our stories are designed for civic participation: school board hearings, planning commission meetings, budget debates. Citizens deserve data that speaks to the decisions being made on their behalf.</p>
+  </div>
+
+  <div class="odc-card">
+    <div class="odc-icon"><i class="bi bi-lightbulb-fill"></i></div>
+    <div class="odc-title">For Inclusive Development</div>
+    <p class="odc-text">All source code is public on GitHub, lowering the barrier for local nonprofits, journalists, and researchers to build on our work at no cost.</p>
+  </div>
+
+</div>
 </section>
 <section id="people" class="level3">
 <h3 class="anchored" data-anchor-id="people">People</h3>

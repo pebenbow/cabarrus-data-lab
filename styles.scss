@@ -52,3 +52,92 @@ div.quarto-about-solana .about-entity .about-link {
 div.quarto-about-solana .about-entity .about-link:hover {
     color: #0336ff
 }
+
+// ── Topic hub pages ──────────────────────────────────────────────────────────
+
+.topic-eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    color: #0336ff;
+    margin-bottom: 0.3rem;
+}
+
+.resource-list {
+    border-top: 2px solid #dce8ff;
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+}
+
+.resource-list h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #888;
+    margin-bottom: 0.75rem;
+}
+
+.resource-item {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #f2f2f2;
+}
+
+.resource-type {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #aaa;
+    width: 140px;
+    flex-shrink: 0;
+}
+
+.resource-item a {
+    font-weight: 500;
+    font-size: 0.93rem;
+}
+
+// ── Codebook accordions in data library ─────────────────────────────────────
+
+details.codebook {
+    border: 1px solid #dce8ff;
+    border-left: 3px solid #0336ff;
+    border-radius: 0 4px 4px 0;
+    padding: 0.6rem 0.9rem;
+    margin: 0.75rem 0 1.25rem;
+    font-size: 0.85rem;
+}
+
+details.codebook summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #0336ff;
+    list-style: none;
+}
+
+details.codebook summary::before {
+    content: "+ ";
+    font-weight: 700;
+}
+
+details.codebook[open] summary::before {
+    content: "- ";
+}
+
+details.codebook[open] summary {
+    margin-bottom: 0.6rem;
+}
+
+details.codebook .codebook-desc {
+    color: #555;
+    margin-bottom: 0.6rem;
+    font-size: 0.83rem;
+}
+
+details.codebook table {
+    font-size: 0.8rem;
+    margin: 0;
+}

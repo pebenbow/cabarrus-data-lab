@@ -1,0 +1,704 @@
+---
+title: "The Growth Engine"
+subtitle: "How Cabarrus County became one of the fastest-growing places in North Carolina"
+date: 2026-06-01
+image: ../img/cabarrusdatalab.png
+format: closeread-html
+execute:
+  echo: false
+  warning: false
+  message: false
+knitr:
+  opts_chunk:
+    dev: ragg_png
+    dpi: 150
+---
+
+```{r setup}
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(scales)
+library(duckdb)
+library(DBI)
+library(ggspatial)
+library(patchwork)
+```
+
+```{r load-data}
+con <- dbConnect(duckdb(),
+  here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+  read_only = TRUE
+)
+pop_data        <- dbReadTable(con, "nc_population_growth")
+geom_raw        <- dbReadTable(con, "raw_nc_geometry")
+time_series_df  <- dbReadTable(con, "cabarrus_population_annual")
+tract_growth_df <- dbReadTable(con, "cabarrus_tract_growth")
+dbDisconnect(con, shutdown = TRUE)
+
+tract_growth <- st_as_sf(tract_growth_df, wkt = "geometry_wkt", crs = 4326)
+fastest_tract  <- tract_growth |> slice_max(pct_change, n = 1)
+slowest_tract  <- tract_growth |> slice_min(pct_change, n = 1)
+median_tract_chg <- round(median(tract_growth$pct_change, na.rm = TRUE), 1)
+n_tracts         <- nrow(tract_growth)
+
+spot_levels <- c(
+  "Hot Spot (99%)", "Hot Spot (95%)", "Hot Spot (90%)",
+  "Not Significant",
+  "Cold Spot (90%)", "Cold Spot (95%)", "Cold Spot (99%)"
+)
+
+nc <- geom_raw |>
+  st_as_sf(wkt = "geometry_wkt", crs = 4326) |>
+  left_join(pop_data, by = "GEOID") |>
+  filter(!is.na(pop_recent)) |>
+  mutate(
+    is_cabarrus = GEOID == "37025",
+    spot_class  = factor(spot_class, levels = spot_levels)
+  )
+
+cab           <- nc |> filter(is_cabarrus) |> st_drop_geometry()
+n_nc          <- nrow(nc)
+data_year     <- cab$data_year[1]
+nc_med_growth <- median(nc$pct_growth, na.rm = TRUE)
+nc_plain      <- nc |> st_drop_geometry()
+
+```
+
+```{r themes}
+# Editorial palette (from rkhd-theme)
+bg_card    <- "#ffffff"
+grid_color <- "#e8e4dc"
+border_geo <- "#c8c3b9"
+text_main  <- "#1a1a1a"
+text_dim   <- "#6a6a6a"
+accent     <- "#8a6f3a"   # amber gold
+accent2    <- "#5d4a27"   # deep amber
+neutral    <- "#c4bfb0"   # warm gray for non-highlighted bars
+decline    <- "#b83232"   # warm red for shrinking counties
+
+spot_colors <- c(
+  "Hot Spot (99%)"  = "#b2182b",
+  "Hot Spot (95%)"  = "#d6604d",
+  "Hot Spot (90%)"  = "#f4a582",
+  "Not Significant" = "#d9d6cf",
+  "Cold Spot (90%)" = "#92c5de",
+  "Cold Spot (95%)" = "#4393c3",
+  "Cold Spot (99%)" = "#2166ac"
+)
+
+edit_theme <- theme_minimal(base_size = 11, base_family = "Georgia") +
+  theme(
+    panel.grid.minor    = element_blank(),
+    panel.grid.major.x  = element_blank(),
+    panel.grid.major.y  = element_line(color = grid_color, linewidth = 0.5),
+    plot.background     = element_rect(fill = bg_card, color = NA),
+    panel.background    = element_rect(fill = bg_card, color = NA),
+    axis.text           = element_text(color = text_dim, family = "Georgia"),
+    axis.title          = element_text(color = text_dim, size = 9, family = "Georgia"),
+    axis.ticks          = element_line(color = grid_color),
+    plot.title          = element_text(face = "bold", size = 12, color = text_main,
+                                       family = "Georgia", margin = margin(b = 6)),
+    plot.subtitle       = element_text(size = 9, color = text_dim, family = "Georgia",
+                                       margin = margin(b = 8)),
+    plot.caption        = element_text(color = text_dim, size = 7.5, hjust = 0,
+                                       family = "Georgia", margin = margin(t = 6)),
+    legend.background   = element_rect(fill = bg_card, color = NA),
+    legend.text         = element_text(color = text_dim, family = "Georgia"),
+    legend.title        = element_text(color = text_dim, family = "Georgia"),
+    legend.key          = element_rect(fill = bg_card, color = NA)
+  )
+
+edit_map_theme <- theme_void(base_size = 11, base_family = "Georgia") +
+  theme(
+    plot.background   = element_rect(fill = bg_card, color = NA),
+    panel.background  = element_rect(fill = bg_card, color = NA),
+    legend.position   = "bottom",
+    legend.background = element_rect(fill = bg_card, color = NA),
+    legend.title      = element_text(size = 9, face = "bold", color = text_dim,
+                                     family = "Georgia"),
+    legend.text       = element_text(size = 9, color = text_dim, family = "Georgia"),
+    legend.key.width  = unit(1.2, "cm"),
+    legend.key.height = unit(0.4, "cm"),
+    plot.title        = element_text(face = "bold", size = 12, color = text_main,
+                                     family = "Georgia", margin = margin(b = 6)),
+    plot.subtitle     = element_text(size = 9, color = text_dim, family = "Georgia",
+                                     margin = margin(b = 10)),
+    plot.caption      = element_text(color = text_dim, size = 8, hjust = 0,
+                                     family = "Georgia", margin = margin(t = 8))
+  )
+```
+
+```{r build-static-maps}
+#| cache: true
+# NC growth rate choropleth (no road overlay)
+map_choropleth <- ggplot(nc) +
+  geom_sf(aes(fill = pct_growth), color = border_geo, linewidth = 0.15) +
+  geom_sf(data = filter(nc, is_cabarrus),
+          fill = NA, color = "black", linewidth = 1.2) +
+  scale_fill_steps2(
+    low      = "#b2182b",
+    mid      = "#f7f7f7",
+    high     = "#2166ac",
+    midpoint = 0,
+    n.breaks = 8,
+    na.value = grid_color,
+    name     = "% change",
+    labels   = function(x) paste0(round(x), "%"),
+    guide    = guide_coloursteps(title.position = "top", title.hjust = 0.5,
+                                 barwidth = unit(8, "cm"), barheight = unit(0.45, "cm"),
+                                 label.position = "bottom", show.limits = TRUE)
+  ) +
+  labs(
+    title    = paste0("Population Growth Rate, 2000–", data_year),
+    subtitle = "Black outline: Cabarrus County",
+    caption  = "Source: U.S. Census Bureau, Decennial Census 2000 and Population Estimates."
+  ) +
+  edit_map_theme
+
+# Within-county tract growth choropleth with basemap and school overlay
+map_tracts <- ggplot(tract_growth) +
+  annotation_map_tile(type = "cartolight", zoom = 11, quiet = TRUE, progress = "none") +
+  geom_sf(aes(fill = pct_change), color = "#888888", linewidth = 0.25, alpha = 0.65) +
+  scale_fill_steps2(
+    low      = "#b2182b",
+    mid      = "#f7f7f7",
+    high     = "#2166ac",
+    midpoint = 0,
+    n.breaks = 7,
+    na.value = grid_color,
+    name     = "% change",
+    labels   = function(x) paste0(round(x), "%"),
+    guide    = guide_coloursteps(title.position = "top", title.hjust = 0.5,
+                                 barwidth = unit(8, "cm"), barheight = unit(0.45, "cm"),
+                                 label.position = "bottom", show.limits = TRUE)
+  ) +
+  labs(
+    title    = "Population Change by Census Tract, 2010–2020",
+    subtitle = "Cabarrus County",
+    caption  = "Source: U.S. Census Bureau, Decennial Census 2010 and 2020.\n2010 population aggregated from census blocks to 2020 tract boundaries."
+  ) +
+  edit_map_theme
+
+# Gi* hot spot map
+map_gistar <- ggplot(nc) +
+  geom_sf(aes(fill = spot_class), color = border_geo, linewidth = 0.15) +
+  geom_sf(data = filter(nc, is_cabarrus),
+          fill = NA, color = "black", linewidth = 1.2) +
+  scale_fill_manual(
+    values = spot_colors, name = "Hot spot class",
+    guide  = guide_legend(title.position = "top", title.hjust = 0.5,
+                          nrow = 2, byrow = TRUE,
+                          keywidth = 0.7, keyheight = 0.4)
+  ) +
+  labs(
+    title    = "Hot Spot Analysis",
+    subtitle = "Red: high-growth cluster. Blue: low-growth cluster. Black outline: Cabarrus.",
+    caption  = "Queen contiguity spatial weights. Z-score thresholds at 90%, 95%, 99% confidence."
+  ) +
+  edit_map_theme
+```
+
+```{r build-charts}
+# Top-20 ranking static bar chart
+nc_top20 <- nc_plain |>
+  arrange(pct_growth) |>
+  slice_tail(n = 20) |>
+  mutate(is_cabarrus = GEOID == "37025")
+
+gg_ranking <- ggplot(nc_top20,
+                     aes(x = pct_growth,
+                         y = reorder(county_name, pct_growth),
+                         fill = is_cabarrus)) +
+  geom_col(width = 0.65) +
+  geom_text(
+    data   = filter(nc_top20, is_cabarrus),
+    aes(label = paste0("Rank ", cab$rank_growth, " of ", n_nc)),
+    hjust  = -0.08, size = 3, color = accent
+  ) +
+  scale_fill_manual(
+    values = c("FALSE" = neutral, "TRUE" = accent),
+    guide  = "none"
+  ) +
+  scale_x_continuous(
+    breaks = seq(0, 125, by = 25),
+    labels = function(x) paste0(round(x), "%"),
+    expand = expansion(mult = c(0, 0.18))
+  ) +
+  labs(
+    x       = paste0("% Growth, 2000–", data_year),
+    y       = NULL,
+    title   = paste0("Top 20 Fastest-Growing NC Counties, 2000–", data_year),
+    caption = "Source: U.S. Census Bureau."
+  ) +
+  edit_theme +
+  theme(
+    axis.text.y        = element_text(size = 8.5),
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = grid_color, linewidth = 0.5, linetype = "dashed")
+  )
+
+# Population time series — top panel
+ts_x_scale <- scale_x_continuous(
+  breaks = seq(2000, max(time_series_df$year), by = 5),
+  limits = c(2000, max(time_series_df$year) + 0.5),
+  expand = expansion(0.02)
+)
+
+gg_pop <- ggplot(time_series_df, aes(x = year, y = pop)) +
+  geom_ribbon(aes(ymin = 0, ymax = pop), fill = accent, alpha = 0.12) +
+  geom_line(color = accent, linewidth = 1.8) +
+  geom_point(color = accent, fill = bg_card, size = 4, shape = 21, stroke = 2) +
+  scale_y_continuous(
+    labels = comma,
+    limits = c(min(time_series_df$pop) * 0.96, max(time_series_df$pop) * 1.04),
+    expand = expansion(0)
+  ) +
+  ts_x_scale +
+  labs(
+    title = paste0("Cabarrus County Population, 2000–", data_year),
+    x     = NULL,
+    y     = "Residents"
+  ) +
+  edit_theme +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+# YoY growth rate — bottom panel
+avg_yoy <- mean(time_series_df$pct_change_yoy, na.rm = TRUE)
+
+gg_yoy <- ggplot(time_series_df |> filter(!is.na(pct_change_yoy)),
+                 aes(x = year, y = pct_change_yoy)) +
+  geom_col(fill = neutral, color = border_geo, linewidth = 0.2, width = 0.7) +
+  geom_hline(yintercept = avg_yoy, color = accent, linewidth = 0.7, linetype = "dashed") +
+  annotate("text",
+           x = max(time_series_df$year),
+           y = avg_yoy + 0.18,
+           label = paste0("Period avg: ", round(avg_yoy, 1), "%"),
+           hjust = 1, vjust = 0, size = 3, color = accent, family = "Georgia") +
+  scale_y_continuous(
+    labels = function(x) paste0(x, "%"),
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  ts_x_scale +
+  labs(
+    x       = NULL,
+    y       = "Annual growth rate",
+    caption = paste0(
+      "Sources: U.S. Census Bureau, Decennial Census 2000, 2010, and 2020; ",
+      "Population Estimates Program intercensal and annual estimates 2001–", data_year, "."
+    )
+  ) +
+  edit_theme +
+  theme(panel.grid.major.y = element_line(color = grid_color, linewidth = 0.4))
+
+gg_timeseries <- gg_pop / gg_yoy + plot_layout(heights = c(3, 1.5))
+
+# Interactive leaflet maps (non-sticky section only)
+# Symmetric domain so 0% maps to the white midpoint of RdBu
+max_abs_growth <- max(abs(nc$pct_growth), na.rm = TRUE)
+pal_growth <- colorNumeric(
+  palette = "RdBu",
+  domain  = c(-max_abs_growth, max_abs_growth)
+)
+
+map_leaflet_growth <- leaflet(nc, height = 800,
+                              options = leafletOptions(scrollWheelZoom = FALSE)) |>
+  addProviderTiles("CartoDB.Positron") |>
+  addPolygons(
+    fillColor   = ~pal_growth(pct_growth), fillOpacity = 0.75,
+    color       = "#c8c3b9", weight = 0.6,
+    popup       = ~paste0("<b>", county_name, "</b><br>",
+                          "Growth: +", round(pct_growth, 1), "%<br>",
+                          "Rank: ", rank_growth, " of ", n_nc),
+    highlightOptions = highlightOptions(weight = 2, fillOpacity = 0.95, bringToFront = TRUE)
+  ) |>
+  addPolygons(data = filter(nc, is_cabarrus),
+              fill = FALSE, color = accent, weight = 3,
+              popup = ~paste0("<b>Cabarrus County</b><br>",
+                              "+", round(pct_growth, 1), "% | Rank ",
+                              rank_growth, " of ", n_nc)) |>
+  addLegend("bottomright", pal = pal_growth, values = ~pct_growth,
+            title    = paste0("% Growth<br>2000–", data_year),
+            opacity  = 0.9,
+            labFormat = labelFormat(suffix = "%", digits = 0))
+
+pal_spot <- colorFactor(
+  palette = unname(spot_colors),
+  levels  = names(spot_colors),
+  ordered = TRUE
+)
+
+map_leaflet_gistar <- leaflet(nc, height = 800,
+                              options = leafletOptions(scrollWheelZoom = FALSE)) |>
+  addProviderTiles("CartoDB.Positron") |>
+  addPolygons(
+    fillColor   = ~pal_spot(spot_class), fillOpacity = 0.8,
+    color       = "#c8c3b9", weight = 0.6,
+    popup       = ~paste0("<b>", county_name, "</b><br>",
+                          as.character(spot_class), "<br>Score: ", round(gi_star, 2)),
+    highlightOptions = highlightOptions(weight = 2, fillOpacity = 0.95, bringToFront = TRUE)
+  ) |>
+  addPolygons(data = filter(nc, is_cabarrus),
+              fill = FALSE, color = accent2, weight = 3) |>
+  addLegend("bottomright", pal = pal_spot, values = ~spot_class,
+            title = "Hot Spot Class", opacity = 0.9)
+
+max_abs_tracts <- max(abs(tract_growth$pct_change), na.rm = TRUE)
+pal_tracts <- colorNumeric(
+  palette = "RdBu",
+  domain  = c(-max_abs_tracts, max_abs_tracts)
+)
+
+map_leaflet_tracts <- leaflet(tract_growth, height = 1200,
+                              options = leafletOptions(scrollWheelZoom = FALSE)) |>
+  addProviderTiles("CartoDB.Positron") |>
+  addPolygons(
+    fillColor   = ~pal_tracts(pct_change), fillOpacity = 0.75,
+    color       = "#c8c3b9", weight = 0.8,
+    popup       = ~paste0("<b>", NAME, "</b><br>",
+                          "2010: ", format(pop_2010, big.mark = ","), "<br>",
+                          "2020: ", format(pop_2020, big.mark = ","), "<br>",
+                          ifelse(!is.na(pct_change),
+                            paste0("Change: ", ifelse(pct_change >= 0, "+", ""),
+                                   round(pct_change, 1), "%"),
+                            "Change: n/a")),
+    highlightOptions = highlightOptions(weight = 2, fillOpacity = 0.95, bringToFront = TRUE)
+  ) |>
+  addLegend("bottomright", pal = pal_tracts, values = ~pct_change,
+            title   = "% Change<br>2010–2020",
+            opacity = 0.9,
+            labFormat = labelFormat(suffix = "%", digits = 0))
+```
+
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,600;1,400;1,600&display=swap");
+
+/* ── Base typography ────────────────────────────────────────────── */
+body { font-family: "Lora", Georgia, serif; }
+
+/* ── Title block (masthead) ─────────────────────────────────────── */
+#title-block-header {
+  border-top: 6px solid #1a1a1a;
+  border-bottom: 1px solid #d9d6cf;
+  padding: 3.5rem 0 2.25rem 0;
+  margin-bottom: 3rem;
+  text-align: center;
+  background: #ffffff;
+}
+#title-block-header h1.title {
+  font-family: "Playfair Display", "Lora", serif;
+  font-size: clamp(2.6rem, 6vw, 4.8rem);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  color: #111;
+}
+#title-block-header .subtitle {
+  font-style: italic;
+  font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+  color: #4a4a4a;
+  max-width: 38rem;
+  margin: 1.75rem auto 0 auto;
+  line-height: 1.5;
+}
+
+/* ── closeread layout ───────────────────────────────────────────── */
+.cr-section,
+.sticky-col,
+.cr-section > * {
+  background-color: #ffffff;
+  color: #2a2a2a;
+}
+.narrative-col {
+  background-color: #ebebeb;
+  color: #2a2a2a;
+}
+.sidebar-left .narrative-col .narrative {
+  background-color: #ebebeb;
+  font-family: "Lora", Georgia, serif;
+  padding: 1.5rem 1.75rem;
+}
+.cr-section,
+.narrative-col          { font-family: "Lora", Georgia, serif; font-size: 1.05rem; line-height: 1.8; }
+.cr-section p,
+.narrative-col p        { font-family: "Lora", Georgia, serif; margin-bottom: 1.2rem; color: #2a2a2a; }
+h2, h3                  { font-family: "Playfair Display", Georgia, serif; color: #1a1a1a; }
+a                 { color: #5d4a27; }
+a:hover           { color: #8a6f3a; }
+hr                { border-color: #d9d6cf; }
+
+/* ── Story lede (drop cap on first paragraph) ───────────────────── */
+.story-lede {
+  font-family: "Lora", Georgia, serif;
+  font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+  line-height: 1.65;
+  color: #2a2a2a;
+  max-width: 820px;
+  margin: 2rem auto 2.5rem;
+  padding: 0 1.5rem;
+}
+.story-lede p { margin-bottom: 1.2rem; color: #2a2a2a; }
+.story-lede p:first-of-type::first-letter {
+  font-family: "Playfair Display", serif;
+  font-size: 3.4em;
+  float: left;
+  line-height: 0.9;
+  padding: 0.05em 0.1em 0 0;
+  font-weight: 700;
+  color: #8a6f3a;
+}
+
+/* ── Section labels ─────────────────────────────────────────────── */
+.story-section-label {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8a6f3a;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+/* ── Story closing ──────────────────────────────────────────────── */
+.story-closing {
+  max-width: 820px;
+  margin: 2.5rem auto 3rem;
+  padding: 0 1.5rem;
+  font-family: "Lora", Georgia, serif;
+  color: #2a2a2a;
+  line-height: 1.75;
+}
+
+/* ── Explore note ───────────────────────────────────────────────── */
+.explore-note {
+  background: #faf9f7;
+  border-left: 3px solid #8a6f3a;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  color: #6a6a6a;
+  margin: 1rem 0 0;
+  border-radius: 0 4px 4px 0;
+}
+
+/* ── Link cards ─────────────────────────────────────────────────── */
+.link-card {
+  flex: 1;
+  min-width: 220px;
+  border: 1px solid #d9d6cf;
+  border-left: 4px solid #8a6f3a;
+  padding: 1rem;
+  border-radius: 0 4px 4px 0;
+  background-color: #ffffff;
+}
+.link-card .card-type {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8a6f3a;
+  margin-bottom: 0.25rem;
+}
+.link-card a   { color: #5d4a27 !important; font-weight: bold; }
+.link-card p   { font-size: 0.85rem; color: #6a6a6a; margin: 0.2rem 0 0; }
+
+/* ── Key findings box ───────────────────────────────────────────── */
+.key-findings {
+  background: #faf9f7;
+  border-left: 4px solid #8a6f3a;
+  padding: 1.25rem 1.5rem 1rem;
+  margin: 0 auto 2.5rem;
+  max-width: 820px;
+  font-family: "Lora", Georgia, serif;
+}
+.key-findings ul {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
+}
+.key-findings li {
+  font-size: 1.1rem;
+  color: #2a2a2a;
+  margin-bottom: 0.55rem;
+  line-height: 1.65;
+}
+.key-findings li:last-child { margin-bottom: 0; }
+</style>
+
+<div class="story-lede">
+<p>North Carolina has 100 counties. Most of them, scattered across the coastal plain and the mountain hollows, have spent the past two decades watching younger residents leave for opportunity elsewhere. Their downtowns thinned out. Their school enrollments declined. Their tax bases strained.</p>
+
+<p>And then there is Cabarrus County.</p>
+
+<p>Between 2000 and `r data_year`, Cabarrus grew by `r round(cab$pct_growth)`%, adding more than `r comma(round(cab$abs_growth, -3))` new residents to a county that began the century with just `r comma(cab$pop_2000)` people. That ranks it `r scales::ordinal(cab$rank_growth)` in the state for percentage growth. It is not a statistical artifact or a one-time boom. It is a sustained, structural shift driven by forces that show no sign of reversing.</p>
+
+<p>Scroll through the story below to see how Cabarrus's growth compares to the rest of North Carolina, why it is part of a larger regional cluster, and what the numbers reveal about the county's trajectory.</p>
+</div>
+
+---
+
+<div class="key-findings">
+<div class="story-section-label">Key Findings</div>
+<ul>
+<li>Cabarrus County grew by **`r round(cab$pct_growth)`%** between 2000 and `r data_year`, adding more than `r comma(round(cab$abs_growth, -3))` residents. That ranks it **`r scales::ordinal(cab$rank_growth)` out of 100** North Carolina counties for percentage growth over that period.</li>
+<li>The growth is not a local accident. A hot spot analysis places Cabarrus in the **`r as.character(cab$spot_class)`** category, meaning the surrounding region grew fast as well. Cabarrus is the statistical core of the most concentrated growth cluster in the state.</li>
+<li>Population has increased every year on record. Growth accelerated after the 2010s and reached its highest annual rates in the post-pandemic period, as remote work expanded the effective commute radius of the Charlotte metro.</li>
+<li>Within the county, growth is uneven. The median census tract grew **`r median_tract_chg`%** between 2010 and 2020, but individual tracts range from `r round(slowest_tract$pct_change, 1)`% to `r round(fastest_tract$pct_change, 1)`%, reflecting where developable land and highway access overlap.</li>
+</ul>
+</div>
+
+## How Fast, and Where It Stands
+
+:::{.cr-section}
+
+North Carolina's growth story is sharply uneven. The map to the right shows every county colored by its percentage population change since 2000. Blue counties grew. Red counties shrank. The pale band in the middle barely moved. @cr-choropleth
+
+:::{#cr-choropleth}
+```{r}
+#| fig-width: 8
+#| fig-height: 5.5
+#| out-width: "100%"
+map_choropleth
+```
+:::
+
+Growth is not random. It concentrates in two corridors: the Research Triangle around Raleigh-Durham in the center-east, and the Piedmont Crescent sweeping up from Charlotte through Cabarrus and into Forsyth County. Western mountain counties and the eastern coastal plain tell a very different story. The amber outline on the map marks Cabarrus County. @cr-choropleth
+
+This bar chart narrows the lens to the 20 fastest-growing counties in the state. This is the company Cabarrus keeps: suburban and exurban counties orbiting the state's major metros, all of them benefiting from the same out-migration forces that pushed households away from expensive city cores. Cabarrus sits near the top, highlighted in amber. @cr-ranking
+
+:::{#cr-ranking}
+```{r}
+#| fig-height: 5
+#| fig-width: 6
+#| out-width: "100%"
+gg_ranking
+```
+:::
+
+The NC county median growth rate over this period was `r round(nc_med_growth, 1)`%. Cabarrus grew at `r round(cab$pct_growth / nc_med_growth, 1)` times that pace.
+
+:::
+
+---
+
+## A Cluster, Not a Spike
+
+:::{.cr-section}
+
+A county that jumps the growth rankings could be a local accident: a single large employer arrives, a reservoir community draws retirees, and an otherwise ordinary county spends a decade at the top of the list before settling back. That is not what is happening in Cabarrus. @cr-gistar
+
+:::{#cr-gistar}
+```{r}
+#| fig-width: 8
+#| fig-height: 5.5
+#| out-width: "100%"
+map_gistar
+```
+:::
+
+The map shows the result of a hot spot analysis, a spatial statistics method that tests whether a county's growth rate is part of a genuinely clustered regional pattern or merely a local spike. Counties in red grew fast; critically, so did their neighbors. Counties in blue contracted alongside their neighbors. Gray counties showed no meaningful spatial pattern. @cr-gistar
+
+The analysis places Cabarrus in the **`r as.character(cab$spot_class)`** category. There is less than a 1% probability that this level of clustered high growth occurs by chance. Cabarrus is not an outlier. It is the core of the most concentrated growth cluster in North Carolina. @cr-gistar
+
+The cluster encompasses Mecklenburg (Charlotte proper), Union County to the south, and Iredell County to the north. The pattern traces a regional dynamic: as Charlotte's core grew expensive and congested, households fanned outward. Cabarrus, with direct I-85 access, lower land costs, and strong public schools, absorbed a large share of that overflow, and then attracted additional employers who followed the workforce. @cr-gistar
+
+:::
+
+---
+
+## Year by Year
+
+:::{.cr-section}
+
+Raw growth percentages show how far a county has traveled between two Census snapshots. They do not reveal whether that journey was steady or turbulent, accelerating or slowing. The chart to the right shows Cabarrus County's population for every year on record. @cr-timeseries
+
+:::{#cr-timeseries}
+```{r}
+#| fig-width: 8
+#| fig-height: 4.5
+#| out-width: "100%"
+gg_timeseries
+```
+:::
+
+The 2000s brought consistent growth: new subdivisions spreading across former farmland, families arriving from Charlotte and from out of state. The 2007-2009 recession briefly slowed homebuilding, visible as a slight flattening of the curve. But the slowdown was modest compared to what many housing-dependent counties experienced. @cr-timeseries
+
+The 2010s produced acceleration. As Charlotte's economy recovered and expanded, the outer ring of suburbs resumed their build-out. Cabarrus added residents faster each year than the year before. Then the post-pandemic period arrived with some of the sharpest annual gains on record: remote work freed households from proximity to the city center, and Cabarrus was exactly the kind of place (larger homes, lower prices, good infrastructure) that benefited most. @cr-timeseries
+
+Each bar in the lower panel records a single year's growth rate: how fast the county added residents relative to the year before. The dashed line marks the period average of `r round(avg_yoy, 1)`% annual growth across the full record. Most years cluster near that baseline, reflecting steady, structurally driven growth. Two departures stand out. A trough around 2010 captures the Great Recession's effect: homebuilding stalled, in-migration slowed, and Cabarrus decelerated, though it never posted an outright decline. The surge beginning in 2019 and intensifying through 2021 reflects the pandemic-era reshuffling of residential geography; remote work freed households from proximity to the city center, and Cabarrus absorbed a disproportionate share of the outflow from higher-cost metros. The consistency between those departures matters as much as the departures themselves: this is a county that grows in good years and merely slows in difficult ones. @cr-timeseries
+
+:::
+
+---
+
+## Where Growth Has Concentrated
+
+:::{.cr-section}
+
+The county-level numbers describe how fast Cabarrus has grown. They do not say where within the county that growth has landed. The `r n_tracts` census tracts that tile Cabarrus County tell a more granular story: the growth that registers as a single headline figure is, on the ground, a patchwork of fast-expanding areas and quieter corners. @cr-tracts
+
+:::{#cr-tracts}
+```{r}
+#| fig-width: 6
+#| fig-height: 5
+#| out-width: "100%"
+map_tracts
+```
+:::
+
+Across all tracts, the median population change between 2010 and 2020 was `r median_tract_chg`%. The fastest-growing tract added residents at a rate of `r round(fastest_tract$pct_change, 1)`%, while `r round(slowest_tract$pct_change, 1)`% marks the slowest end of the range. That spread, wide enough to encompass both robust suburban build-out and near-stagnant corners of the county, is what aggregate growth figures obscure. @cr-tracts
+
+The spatial pattern encodes the underlying logic of suburban expansion: growth concentrates where developable land meets highway access and new infrastructure. The quieter tracts tend to be either long-established neighborhoods near the county seat where most lots are already built out, or rural areas at the county's edges where the suburban wave has not yet arrived. @cr-tracts
+
+:::
+
+---
+
+## Explore the Data
+
+The static maps above capture the overall pattern. The interactive versions below let you click into individual counties for exact figures.
+
+**Growth Rate by County (click any county for details)**
+
+```{r}
+map_leaflet_growth
+```
+
+**Hot Spot Classification (click for details)**
+
+```{r}
+map_leaflet_gistar
+```
+
+**Population Change by Census Tract, 2010–2020 (click for details)**
+
+```{r}
+map_leaflet_tracts
+```
+
+---
+
+<div class="story-closing">
+
+## What It Means
+
+The `r data_year - 2000`-year arc of growth documented here has created Cabarrus County's most urgent planning challenges. Infrastructure designed for `r comma(round(cab$pop_2000, -3))` residents now serves nearly `r comma(round(cab$pop_recent, -4))`. Road networks, school capacity, water and sewer systems, and emergency services all reflect population figures that no longer exist.
+
+More growth is coming. The forces driving in-migration (Charlotte's economic expansion, Cabarrus's relative affordability, highway access) have not reversed. The questions facing county planners are not whether to accommodate growth, but how: where to direct it, what to preserve in the process, and how to ensure the infrastructure keeps pace.
+
+Those questions touch land use, housing affordability, and the conversion of farmland and natural areas: the subjects of the next stories in this series.
+
+<div style="margin-top: 2rem; display: flex; gap: 1.5rem; flex-wrap: wrap;">
+
+<div class="link-card">
+<div class="card-type">Data Brief</div>
+<a href="../data-briefs/0001-population-growth.pdf">Population Growth (PDF)</a>
+<p>The one-page summary with key statistics and maps.</p>
+</div>
+
+<div class="link-card">
+<div class="card-type">Methodology</div>
+<a href="../blog/posts/0004-population-brief-methodology.html">Behind the Numbers</a>
+<p>How the hot spot analysis works and what it proves.</p>
+</div>
+
+</div>
+</div>

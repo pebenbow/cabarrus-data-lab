@@ -1,0 +1,51 @@
+---
+title: "Vanishing Farmland"
+description: "Between 2011 and 2021, Cabarrus County steadily converted farmland and forest to developed land. National Land Cover Database records put numbers on a transformation visible from any county road."
+date: 2026-04-17
+categories: [Land Use]
+image: ../../img/cabarrusdatalab.png
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+library(duckdb); library(DBI); library(scales)
+con    <- dbConnect(duckdb(),
+  here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+  read_only = TRUE)
+area   <- dbReadTable(con, "nlcd_landcover_area")
+dbDisconnect(con, shutdown = TRUE)
+
+yr_first <- min(area$year)
+yr_last  <- max(area$year)
+
+farm_first <- area[area$class == "Farmland" & area$year == yr_first, "acres"]
+farm_last  <- area[area$class == "Farmland" & area$year == yr_last,  "acres"]
+dev_first  <- area[area$class == "Developed" & area$year == yr_first, "acres"]
+dev_last   <- area[area$class == "Developed" & area$year == yr_last,  "acres"]
+
+farm_lost  <- round(farm_first - farm_last)
+farm_pct   <- round((farm_first - farm_last) / farm_first * 100)
+dev_added  <- round(dev_last - dev_first)
+```
+
+<p class="topic-eyebrow">Land Use</p>
+
+Between `r yr_first` and `r yr_last`, Cabarrus County converted roughly `r comma(farm_lost)` acres of farmland to other uses, a `r farm_pct`% reduction in its agricultural land base. Over the same period, developed land (roads, subdivisions, commercial areas) expanded by `r comma(dev_added)` acres. The NLCD's consistent multi-year methodology makes these comparisons reliable: unlike agricultural classification products, the NLCD is designed specifically for tracking land cover change across time. The pattern mirrors the population trajectory documented in the growth analysis: the same suburban expansion that pushed Cabarrus into North Carolina's top growth rankings was built, in part, on converted open land.
+
+<div class="resource-list">
+<h3>Resources</h3>
+
+<div class="resource-item">
+  <span class="resource-type">Data Brief</span>
+  <a href="/data-briefs/0003-vanishing-farmland.pdf">Cabarrus County's Vanishing Farmland (PDF)</a>
+</div>
+
+<div class="resource-item">
+  <span class="resource-type">Dataset</span>
+  <a href="../../data/index.qmd#land-cover">NLCD Land Cover by Class and Year (browse &amp; download)</a>
+</div>
+
+</div>

@@ -17,7 +17,271 @@
 <width>144</width>
 </image>
 <generator>quarto-1.6.40</generator>
-<lastBuildDate>Sun, 22 Feb 2026 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Thu, 16 Apr 2026 04:00:00 GMT</lastBuildDate>
+<item>
+  <title>Behind the Numbers: How We Measured Population Growth and Spatial Hot Spots</title>
+  <dc:creator>Pete Benbow</dc:creator>
+  <link>https://cabarrusdatalab.com/blog/posts/0004-population-brief-methodology.html</link>
+  <description><![CDATA[ 
+
+
+
+
+<p>Our <a href="../../data-briefs/0001-population-growth.pdf">first Data Brief</a> documents one of the most striking demographic stories in North Carolina: Cabarrus County’s 76% population increase between 2000 and 2023, ranking 5th out of 100 counties statewide. This post explains the data behind that finding, how the growth rate was calculated, and (most importantly) how the Getis-Ord Gi* hot spot analysis works and what it proves.</p>
+<section id="where-the-data-come-from" class="level2">
+<h2 class="anchored" data-anchor-id="where-the-data-come-from">Where the data come from</h2>
+<p>The brief uses two sources, covering the beginning and end of a 23-year window.</p>
+<p><strong>The 2000 baseline</strong> comes from the Decennial Census (Summary File 1, table P001001, total population). The decennial census is a full enumeration of every person in the United States, conducted every ten years. It is the gold standard for population data: no sampling, no modeling, no uncertainty.</p>
+<p><strong>The 2023 endpoint</strong> uses the Census Bureau’s American Community Survey (ACS), 5-year estimates ending 2023. The ACS is a continuous survey that samples approximately 3.5 million households per year. The 5-year estimates pool five years of survey responses to produce reliable estimates for small geographies. Unlike the decennial census, ACS estimates include a margin of error.</p>
+<p>Both series are accessed through the <code>tidycensus</code> R package, which provides a consistent interface to the Census Bureau’s APIs and published data files.</p>
+</section>
+<section id="how-the-growth-rate-was-calculated" class="level2">
+<h2 class="anchored" data-anchor-id="how-the-growth-rate-was-calculated">How the growth rate was calculated</h2>
+<p>The percentage growth rate is the same formula used in any before-and-after comparison:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctext%7BGrowth%20Rate%7D%20=%20%5Cfrac%7B%5Ctext%7BPopulation%7D_%7B2023%7D%20-%20%5Ctext%7BPopulation%7D_%7B2000%7D%7D%7B%5Ctext%7BPopulation%7D_%7B2000%7D%7D%20%5Ctimes%20100"></p>
+<p>For Cabarrus County:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Cfrac%7B231,262%20-%20131,063%7D%7B131,063%7D%20%5Ctimes%20100%20=%2076.5%5C%25"></p>
+<p>This is an unadjusted rate that reflects raw head-count growth over 23 years, not an annualized compound rate. The advantage of the simple rate is interpretability; the disadvantage is that it makes shorter and longer time windows hard to compare directly. The NC county median growth rate over the same period was 9.7%.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="https://cabarrusdatalab.com/blog/posts/0004-population-brief-methodology_files/figure-html/growth-map-1.png" class="img-fluid figure-img" width="768"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>The map immediately shows the spatial pattern: growth is concentrated in the Piedmont Triad and Charlotte metro, while many coastal plain and mountain counties have declined or stagnated. This geographic clustering motivates the hot spot analysis.</p>
+</section>
+<section id="what-the-getis-ord-gi-statistic-measures" class="level2">
+<h2 class="anchored" data-anchor-id="what-the-getis-ord-gi-statistic-measures">What the Getis-Ord Gi* statistic measures</h2>
+<p>The choropleth above shows <em>where</em> growth happened, but it does not distinguish between two very different situations:</p>
+<ol type="1">
+<li>A county that grew quickly while its neighbors stagnated (an isolated spike)</li>
+<li>A county that grew quickly and whose neighbors also grew quickly (a true spatial cluster)</li>
+</ol>
+<p>These situations look identical on a simple choropleth but have very different implications. An isolated spike might reflect a single large development or a data quirk. A spatial cluster suggests a self-reinforcing regional dynamic, the kind of growth that attracts further growth.</p>
+<p>The <strong>Getis-Ord Gi*</strong> statistic, introduced by Getis and Ord (1992) and extended in Ord and Getis (1995), tests for this clustering formally. For each county <img src="https://latex.codecogs.com/png.latex?i">, it computes:</p>
+<p><img src="https://latex.codecogs.com/png.latex?G_i%5E*%20=%20%5Cfrac%7B%5Csum_%7Bj%7D%20w_%7Bij%7D%20x_j%20-%20%5Cbar%7Bx%7D%20%5Csum_%7Bj%7D%20w_%7Bij%7D%7D%7BS%20%5Csqrt%7B%5Cfrac%7Bn%20%5Csum_%7Bj%7D%20w_%7Bij%7D%5E2%20-%20(%5Csum_%7Bj%7D%20w_%7Bij%7D)%5E2%7D%7Bn-1%7D%7D%7D"></p>
+<p>Where: - <img src="https://latex.codecogs.com/png.latex?x_j"> is the growth rate of county <img src="https://latex.codecogs.com/png.latex?j"> - <img src="https://latex.codecogs.com/png.latex?w_%7Bij%7D"> is the spatial weight between counties <img src="https://latex.codecogs.com/png.latex?i"> and <img src="https://latex.codecogs.com/png.latex?j"> (1 if neighbors, 0 otherwise; the Gi* variant includes county <img src="https://latex.codecogs.com/png.latex?i"> itself) - <img src="https://latex.codecogs.com/png.latex?%5Cbar%7Bx%7D"> is the mean growth rate across all counties - <img src="https://latex.codecogs.com/png.latex?S"> is the standard deviation of growth rates - <img src="https://latex.codecogs.com/png.latex?n"> is the number of counties (100 for NC)</p>
+<p>The result is a <strong>z-score</strong> for each county. A large positive z-score means the county and its neighbors collectively have much higher growth than would be expected by chance. A large negative z-score means a cluster of slow or declining counties. Z-scores that fall near zero indicate no meaningful spatial clustering.</p>
+<section id="spatial-weights-who-is-a-neighbor" class="level3">
+<h3 class="anchored" data-anchor-id="spatial-weights-who-is-a-neighbor">Spatial weights: who is a neighbor?</h3>
+<p>The Gi* requires a definition of “neighbor.” We use <strong>queen contiguity</strong>: any county that shares at least one boundary point with county <img src="https://latex.codecogs.com/png.latex?i"> is its neighbor. For Cabarrus County, this includes Mecklenburg, Rowan, Stanly, Union, Iredell, and Kannapolis-area counties. The intuition is geographic: if growth is truly a regional phenomenon, it should show up in counties that share borders, not just counties that are abstractly “nearby.”</p>
+<p>The computation uses the <code>spdep</code> R package (Bivand &amp; Wong, 2018), which implements the Gi* statistic with a binary spatial weights matrix (style = “B”) and self-inclusion.</p>
+</section>
+<section id="how-to-read-the-significance-thresholds" class="level3">
+<h3 class="anchored" data-anchor-id="how-to-read-the-significance-thresholds">How to read the significance thresholds</h3>
+<p>The z-score is compared against the standard normal distribution to assess statistical significance:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: right;">Z-score threshold</th>
+<th style="text-align: center;">Significance level</th>
+<th style="text-align: left;">Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">≥ 2.576</td>
+<td style="text-align: center;">99%</td>
+<td style="text-align: left;">Hot spot (very high confidence)</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">≥ 1.960</td>
+<td style="text-align: center;">95%</td>
+<td style="text-align: left;">Hot spot (high confidence)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">≥ 1.645</td>
+<td style="text-align: center;">90%</td>
+<td style="text-align: left;">Hot spot (moderate confidence)</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">−1.645 to 1.645</td>
+<td style="text-align: center;">n/a</td>
+<td style="text-align: left;">Not significant</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">≤ −1.645</td>
+<td style="text-align: center;">90%</td>
+<td style="text-align: left;">Cold spot (moderate confidence)</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">≤ −1.960</td>
+<td style="text-align: center;">95%</td>
+<td style="text-align: left;">Cold spot (high confidence)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">≤ −2.576</td>
+<td style="text-align: center;">99%</td>
+<td style="text-align: left;">Cold spot (very high confidence)</td>
+</tr>
+</tbody>
+</table>
+<p>Cabarrus County’s z-score of <strong>3.45</strong> places it in the <strong>Hot Spot (99%)</strong> category, meaning there is less than a 1% probability that this level of clustered high growth would occur at random.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="https://cabarrusdatalab.com/blog/posts/0004-population-brief-methodology_files/figure-html/hotspot-map-1.png" class="img-fluid figure-img" width="768"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>The hot spot map reveals that Cabarrus is not an outlier: it is part of a contiguous cluster of high-growth counties anchored by Mecklenburg. This is a regional phenomenon driven by Charlotte’s economic expansion and outward residential growth, not a Cabarrus-specific story.</p>
+</section>
+</section>
+<section id="annual-population-time-series" class="level2">
+<h2 class="anchored" data-anchor-id="annual-population-time-series">Annual population time series</h2>
+<p>The story’s year-by-year chart tracks Cabarrus County’s population for every year from 2000 through the most recent estimate. Constructing a continuous annual series required three separate data sources, because the Census Bureau’s Population Estimates Program (PEP) changed its API structure after the 2020 Census and does not support pre-2015 data through its current API endpoints.</p>
+<p><strong>Decennial anchor years (2000, 2010, 2020).</strong> The full-enumeration decennial census counts serve as fixed reference points at the start, midpoint, and recent end of the series. These are the most reliable population figures available: no sampling, no modeling, no uncertainty interval.</p>
+<p><strong>2001-2009 (intercensal estimates).</strong> After each decennial census, the Census Bureau publishes a revised intercensal file that reconciles its annual estimates with both surrounding decennial counts, removing the upward drift that accumulates in the PEP series. The 2001-2009 figures come from the post-2010 intercensal county totals file (<code>co-est00int-tot.csv</code>), downloaded directly from the Census Bureau’s public archive. These estimates were revised backward after the 2010 census to be internally consistent with both the 2000 and 2010 counts.</p>
+<p><strong>2011-2019 (post-2010 PEP annual estimates).</strong> Annual estimates for this period are retrieved through the <code>tidycensus</code> package using <code>get_estimates()</code> with the 2019 vintage and <code>time_series = TRUE</code>. This returns July 1 population estimates for 2011-2019 in a single API call. If the API call fails, a CSV fallback downloads the same data from the Census Bureau’s 2010-2019 county totals file.</p>
+<p><strong>2021-2023 (post-2020 PEP annual estimates).</strong> After the 2020 decennial census, the PEP program restarted with the 2020 count as its new baseline. The API structure changed: <code>get_estimates()</code> now requires separate <code>vintage</code> and <code>year</code> arguments, and the <code>time_series</code> parameter is not supported for post-2020 data. Each year is retrieved individually using the most recent available vintage (2023, falling back to 2022 for earlier years). The 2020 decennial count is used for the 2020 anchor directly, without relying on the PEP.</p>
+<p>The final table (<code>cabarrus_population_annual</code>) combines all segments, deduplicates at decennial years (where both the decennial count and a PEP estimate exist), and adds year-over-year population change and percentage growth rate columns. The result is a 24-row series covering 2000 through 2023.</p>
+<p>The year-over-year growth rate bars in the story’s bottom panel are computed as <img src="https://latex.codecogs.com/png.latex?(%5Ctext%7BPop%7D_t%20-%20%5Ctext%7BPop%7D_%7Bt-1%7D)%20/%20%5Ctext%7BPop%7D_%7Bt-1%7D%20%5Ctimes%20100">. The period average is the mean of those annual rates across all years with a defined prior-year baseline.</p>
+</section>
+<section id="census-tract-boundary-crosswalk" class="level2">
+<h2 class="anchored" data-anchor-id="census-tract-boundary-crosswalk">Census tract boundary crosswalk</h2>
+<p>Comparing tract-level populations between the 2010 and 2020 censuses requires resolving a boundary mismatch. The Census Bureau periodically redraws tract boundaries to keep tract populations within a target range, splitting high-growth tracts and occasionally merging others. A direct comparison of 2010 tract totals to 2020 tract totals would conflate boundary changes with actual population changes.</p>
+<p>The conventional workaround is <strong>areal interpolation</strong>: distribute a source zone’s population to target zones in proportion to the share of area that overlaps. This approach introduces error wherever population density is spatially uneven within a source zone, which is common in suburban counties where dense subdivisions, commercial corridors, and undeveloped land can all fall within a single tract.</p>
+<p>We use a more accurate <strong>block-level aggregation</strong> instead. Census blocks are the smallest tabulation geography; they are designed to be internally homogeneous in character and small enough that a single block rarely spans a major density transition. We assign every 2010 census block to its corresponding 2020 tract by centroid: the block’s center point is matched to the nearest 2020 tract boundary using <code>st_nearest_feature</code> from the <code>sf</code> package. Summing those block-level 2010 populations by 2020 tract produces a 2010 population baseline expressed in 2020 geography, enabling a direct comparison.</p>
+<p>The <code>st_nearest_feature</code> join rather than <code>st_within</code> guarantees that every block receives exactly one tract assignment, handling the small minority of centroids that fall precisely on a shared boundary. The residual approximation is limited to the rarest cases: 2010 blocks whose actual boundaries straddle a 2020 tract line and whose population is genuinely ambiguous. For a suburban county like Cabarrus, this affects a negligible share of total population.</p>
+<p>The block-level crosswalk data are stored in <code>raw_cabarrus_blocks_2010</code>, and the final tract comparison table (in 2020 tract geography) is stored in <code>cabarrus_tract_growth</code>.</p>
+</section>
+<section id="what-this-means-for-cabarrus-county" class="level2">
+<h2 class="anchored" data-anchor-id="what-this-means-for-cabarrus-county">What this means for Cabarrus County</h2>
+<p>The combination of a high raw growth rate and a statistically significant hot spot classification has practical implications:</p>
+<p><strong>Infrastructure pressure is regional, not local.</strong> Road networks, water systems, and school capacity in Cabarrus cannot be planned in isolation from neighboring counties. Growth in Union County creates demand on Cabarrus infrastructure and vice versa.</p>
+<p><strong>Growth is self-reinforcing.</strong> Spatial clustering of growth is associated with agglomeration effects: employers locate where workers live, workers follow employers, and housing follows both. This dynamic is unlikely to slow without deliberate policy intervention.</p>
+<p><strong>Comparisons to state averages understate the challenge.</strong> Cabarrus’s growth rate is 7.9× the NC county median. Using the state average as a baseline for service planning would significantly underestimate Cabarrus’s needs.</p>
+</section>
+<section id="caveats-and-limitations" class="level2">
+<h2 class="anchored" data-anchor-id="caveats-and-limitations">Caveats and limitations</h2>
+<p><strong>PEP estimates are revised annually.</strong> The 2023 estimate for Cabarrus County will be revised in future vintages as administrative records are reconciled. The growth rate and rank reported here reflect the current best estimate, which may shift by a few percentage points in future releases.</p>
+<p><strong>The Gi* statistic assumes stationarity.</strong> The analysis assumes the relationship between growth and spatial neighbors is consistent across all 100 NC counties. In practice, western mountain counties and coastal plain counties operate in very different economic contexts. A more sophisticated analysis might use geographically weighted regression to allow the relationship to vary spatially.</p>
+<p><strong>Growth rate and growth volume are different stories.</strong> Johnston County tops the NC county growth-rate rankings: 99.5% growth reflects rapid expansion from a smaller base. Mecklenburg County, growing more slowly in percentage terms, added far more residents in absolute numbers. The brief focuses on rates; a companion analysis of absolute growth would tell a different story.</p>
+<hr>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<p>Bivand, R. S., &amp; Wong, D. W. S. (2018). Comparing implementations of global and local indicators of spatial association. <em>TEST</em>, 27(3), 716–748. https://doi.org/10.1007/s11749-018-0599-x</p>
+<p>Getis, A., &amp; Ord, J. K. (1992). The analysis of spatial association by use of distance statistics. <em>Geographical Analysis</em>, 24(3), 189–206. https://doi.org/10.1111/j.1538-4632.1992.tb00261.x</p>
+<p>Ord, J. K., &amp; Getis, A. (1995). Local spatial autocorrelation statistics: Distributional issues and an application. <em>Geographical Analysis</em>, 27(4), 286–306. https://doi.org/10.1111/j.1538-4632.1995.tb00912.x</p>
+<p>U.S. Census Bureau. (2024). <em>Population estimates program: Methodology</em>. https://www.census.gov/programs-surveys/popest/technical-documentation/methodology.html</p>
+<p>Walker, K., &amp; Herman, M. (2023). <em>tidycensus: Load US Census boundary and attribute data as ‘tidyverse’ and ‘sf’-ready data frames</em> (R package version 1.6). https://walker-data.com/tidycensus/</p>
+<hr>
+<p><em>Data: U.S. Census Bureau, Decennial Census 2000 and ACS 5-Year Estimates 2023. Analysis by Pete Benbow, Cabarrus Data Lab.</em></p>
+
+
+</section>
+
+ ]]></description>
+  <category>methodology</category>
+  <category>population</category>
+  <category>spatial-analysis</category>
+  <guid>https://cabarrusdatalab.com/blog/posts/0004-population-brief-methodology.html</guid>
+  <pubDate>Thu, 16 Apr 2026 04:00:00 GMT</pubDate>
+  <media:content url="https://cabarrusdatalab.com/img/cabarrusdatalab.png" medium="image" type="image/png" height="75" width="144"/>
+</item>
+<item>
+  <title>Behind the Numbers: How We Measured Housing Affordability</title>
+  <dc:creator>Pete Benbow</dc:creator>
+  <link>https://cabarrusdatalab.com/blog/posts/0003-housing-brief-methodology.html</link>
+  <description><![CDATA[ 
+
+
+
+
+<p>Our <a href="../../data-briefs/0001-home-prices-wages.pdf">first Data Brief</a> asks a deceptively simple question: have home prices and rents in Cabarrus County risen faster than wages? To answer it, we needed to choose the right data, define what “faster” means mathematically, and be honest about what we can and cannot conclude. This post walks through each of those choices.</p>
+<section id="where-the-data-come-from" class="level2">
+<h2 class="anchored" data-anchor-id="where-the-data-come-from">Where the data come from</h2>
+<p>All three measures in the brief (median home value, median gross rent, and median household income) come from the <strong>American Community Survey (ACS)</strong>, a continuous survey conducted by the U.S. Census Bureau that samples roughly 3.5 million households nationwide each year.</p>
+<p>We used the <strong>1-year estimates</strong>, which reflect a single calendar year of data and give us the most up-to-date annual snapshot available. The tradeoff is precision: 1-year estimates have higher margins of error than the 5-year pooled estimates because they’re based on a smaller sample. For a county the size of Cabarrus (~230,000 residents), the 1-year estimates are published starting in 2006 and are generally reliable for tracking year-over-year trends in broadly defined metrics like median income.</p>
+<p>The three ACS variables we used:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>ACS Table</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Median home value</td>
+<td>B25077</td>
+<td>Self-reported market value of owner-occupied homes</td>
+</tr>
+<tr class="even">
+<td>Median gross rent</td>
+<td>B25064</td>
+<td>Monthly rent plus utilities, for renter-occupied units</td>
+</tr>
+<tr class="odd">
+<td>Median household income</td>
+<td>B19013</td>
+<td>Total pre-tax income for all household members</td>
+</tr>
+</tbody>
+</table>
+<p>One year is conspicuously absent from our charts: <strong>2020</strong>. The Census Bureau did not release 1-year ACS estimates for 2020 because the COVID-19 pandemic severely disrupted survey operations and response rates fell below acceptable thresholds. We skip 2020 entirely rather than interpolate.</p>
+</section>
+<section id="how-the-index-was-calculated" class="level2">
+<h2 class="anchored" data-anchor-id="how-the-index-was-calculated">How the index was calculated</h2>
+<p>Plotting raw dollar values of home prices, rents, and incomes on the same chart is technically possible but misleading: a $200,000 home and a $50,000 income look wildly different in scale even though the relationship between them is what matters.</p>
+<p>Instead, we converted each series to an <strong>index with 2006 as the base year (= 100)</strong>. The formula is straightforward:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctext%7BIndex%7D_t%20=%20%5Cfrac%7B%5Ctext%7BValue%7D_t%7D%7B%5Ctext%7BValue%7D_%7B2006%7D%7D%20%5Ctimes%20100"></p>
+<p>For example, if median home values were $150,000 in 2006 and $280,000 in 2023, the 2023 index value would be:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Cfrac%7B280%7B,%7D000%7D%7B150%7B,%7D000%7D%20%5Ctimes%20100%20=%20186.7"></p>
+<p>This means home values were 86.7% higher in 2023 than in 2006. The index lets us compare growth <em>rates</em> across three series that started at very different dollar levels. A value above 100 means the metric has grown since 2006; a value below 100 would mean it shrank.</p>
+<p>We chose 2006 as the base year because it is the earliest year for which all three ACS 1-year estimates are reliably available for Cabarrus County.</p>
+<p>For <strong>annual rent</strong>, we multiply the ACS’s monthly gross rent figure by 12. This makes rent directly comparable to the annual income figure and avoids the ambiguity of comparing a monthly cost to an annual income. The conversion is:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctext%7BAnnual%20Rent%7D%20=%20%5Ctext%7BMonthly%20Gross%20Rent%7D%20%5Ctimes%2012"></p>
+</section>
+<section id="how-the-price-to-income-ratio-was-calculated" class="level2">
+<h2 class="anchored" data-anchor-id="how-the-price-to-income-ratio-was-calculated">How the price-to-income ratio was calculated</h2>
+<p>The price-to-income ratio is one of the most widely used measures of housing affordability among economists, urban planners, and real estate researchers. It answers the question: <em>how many years of income would it take to buy the median home, assuming you spent your entire income on it?</em></p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctext%7BPrice-to-Income%20Ratio%7D%20=%20%5Cfrac%7B%5Ctext%7BMedian%20Home%20Value%7D%7D%7B%5Ctext%7BMedian%20Household%20Income%7D%7D"></p>
+<p>A ratio of 3.0, for example, means the median home costs exactly three times the median annual household income.</p>
+<p>The <strong>3× threshold</strong> used in our chart is a conventional benchmark. It was popularized by researchers at Harvard’s Joint Center for Housing Studies and is used by the National Association of Realtors as a rule of thumb for “affordable” homeownership. The logic behind it: if a household puts 20% down and takes a 30-year fixed mortgage on a home priced at 3× their income, the monthly payment (at historical average rates) consumes roughly 25–28% of gross income, a level most financial advisors consider manageable.</p>
+<p>The threshold is not a hard rule. A ratio of 3.1 isn’t a cliff edge. But it serves as a useful benchmark for tracking directional trends over time, and Cabarrus County’s ratio has risen well above it.</p>
+</section>
+<section id="what-we-can-and-cannot-conclude" class="level2">
+<h2 class="anchored" data-anchor-id="what-we-can-and-cannot-conclude">What we can and cannot conclude</h2>
+<p>A few important caveats:</p>
+<p><strong>These are nominal values.</strong> We did not adjust for inflation. This means the index reflects changes in <em>current dollars</em>, not purchasing power. If incomes rose 50% but inflation also ran at 50%, residents wouldn’t actually be better off, but our index would show income growth. For a brief focused on relative comparisons (home values vs.&nbsp;incomes, both in nominal terms), this is defensible: what matters is whether your paycheck can keep up with what landlords and sellers are actually charging, not whether it’s keeping up with the CPI.</p>
+<p><strong>Medians hide distribution.</strong> The ACS median is the middle value: half of households earn more, half earn less. A rising median income could mask stagnant wages at the bottom of the distribution even as high earners pull the median up. Similarly, a rising median home value could reflect a flood of high-end construction rather than appreciation in existing stock. We’re measuring the middle of the market, not its full shape.</p>
+<p><strong>Home value is self-reported.</strong> The ACS asks homeowners to estimate what their home would sell for today. Self-reported valuations tend to be slightly lower than actual transaction prices and lag real-time market movements. For long-run trends, however, self-reported values track closely with sale price indices.</p>
+<p><strong>Income and home value are not matched at the household level.</strong> We’re comparing the <em>county-wide median</em> home value to the <em>county-wide median</em> household income. These are not necessarily the income and home value of the same household. A household earning the county median income may face a home-buying market where the typical home costs much more than what our ratio implies if they’re competing against higher-income buyers.</p>
+</section>
+<section id="what-this-means-for-cabarrus-county" class="level2">
+<h2 class="anchored" data-anchor-id="what-this-means-for-cabarrus-county">What this means for Cabarrus County</h2>
+<p>Cabarrus County is one of the fastest-growing counties in North Carolina, driven largely by its proximity to Charlotte. That growth has real benefits: a broader tax base, more employers, and expanding amenities. But it has also introduced a structural affordability problem that the data make difficult to ignore.</p>
+<p>For <strong>current homeowners</strong>, rising values are a source of wealth, at least on paper. For <strong>first-time buyers</strong> (especially younger residents, essential workers, and families without inherited equity), the math has become increasingly punishing. A median-priced home in the county now requires a household income well above the county median just to pass standard lender underwriting criteria.</p>
+<p>For <strong>renters</strong>, the situation is similarly challenging. Annual rents have grown faster than incomes over this period, meaning more income is devoted to housing costs, leaving less for savings, health care, and other essentials. Research consistently shows that households spending more than 30% of income on housing face measurably worse health and economic outcomes.</p>
+<p>For <strong>local decision-makers</strong> (county commissioners, planning boards, and economic development offices), this data offers a concrete empirical foundation for housing policy discussions. It is not enough to note that Cabarrus is “affordable compared to Charlotte.” The relevant comparison is whether Cabarrus residents can afford to <em>live in Cabarrus</em>, and on that measure, the trends are moving in the wrong direction.</p>
+<p>Future briefs will examine which neighborhoods are most affected, how Cabarrus compares to similar fast-growing counties, and what policy levers have shown evidence of moderating price growth elsewhere.</p>
+<hr>
+<p><em>Data: U.S. Census Bureau, American Community Survey, 1-Year Estimates (2006–2023). Analysis by Pete Benbow, Cabarrus Data Lab.</em></p>
+
+
+</section>
+
+ ]]></description>
+  <category>methodology</category>
+  <category>housing</category>
+  <category>affordability</category>
+  <guid>https://cabarrusdatalab.com/blog/posts/0003-housing-brief-methodology.html</guid>
+  <pubDate>Wed, 15 Apr 2026 04:00:00 GMT</pubDate>
+  <media:content url="https://cabarrusdatalab.com/img/cabarrusdatalab.png" medium="image" type="image/png" height="75" width="144"/>
+</item>
 <item>
   <title>Introduction</title>
   <dc:creator>Pete Benbow</dc:creator>

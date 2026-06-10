@@ -1,0 +1,48 @@
+---
+title: "Housing Affordability"
+description: "Home values and rents in Cabarrus County have outpaced income growth since 2006, compressing affordability even as the county's population surge continues to attract new residents."
+date: 2026-04-17
+author: Pete Benbow
+categories: [Housing]
+image: ../../img/covers/housing.png
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+library(duckdb); library(DBI); library(scales)
+con     <- dbConnect(duckdb(),
+  here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+  read_only = TRUE)
+housing <- dbReadTable(con, "cabarrus_housing")
+dbDisconnect(con, shutdown = TRUE)
+
+latest     <- housing[housing$year == max(housing$year), ]
+base       <- housing[housing$year == min(housing$year), ]
+yr_latest  <- latest$year
+yr_base    <- base$year
+hti_latest <- round(latest$home_to_income, 1)
+idx_home   <- round(latest$idx_home)
+idx_income <- round(latest$idx_income)
+```
+
+<p class="topic-eyebrow">Housing Affordability</p>
+
+Between `r yr_base` and `r yr_latest`, the median home value in Cabarrus County rose to an index of `r idx_home` (base year `r yr_base` = 100) while household income reached only `r idx_income` over the same period. Home prices have outpaced income growth by `r idx_home - idx_income` index points, compressing the affordability margin that historically made Cabarrus County an attractive alternative to Mecklenburg. By `r yr_latest` the price-to-income ratio had reached `r hti_latest`, above the 3.0 threshold that housing economists traditionally mark as the boundary of affordability. Rents have followed a similar trajectory, tightening the housing market for owners and renters alike as population growth continues to drive demand.
+
+<div class="resource-list">
+<h3>Resources</h3>
+
+<div class="resource-item">
+  <span class="resource-type">Data Brief</span>
+  <a href="/data-briefs/0002-home-prices-wages.pdf">Home Prices, Rents &amp; Wages in Cabarrus County (PDF)</a>
+</div>
+
+<div class="resource-item">
+  <span class="resource-type">Dataset</span>
+  <a href="../../data/index.qmd#housing">Cabarrus Housing Affordability (browse &amp; download)</a>
+</div>
+
+</div>

@@ -1,0 +1,16 @@
+---
+title: "Analysis"
+format: html
+listing:
+  sort: "date desc"
+  contents: "briefs/*.qmd"
+  image-placeholder: "../img/cabarrusdatalab.png"
+  sort-ui: false
+  filter-ui: false
+  categories: true
+  feed: true
+page-layout: full
+# margin-header: signup.html
+title-block-banner: true
+---
+

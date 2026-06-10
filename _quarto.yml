@@ -1,6 +1,10 @@
 project:
   type: website
   output-dir: docs
+  render:
+    - "**/*.qmd"
+    - "!topics/**"
+    - "!analysis/**"
 
 website:
   title: "Cabarrus Data Lab"
@@ -18,8 +22,14 @@ website:
     right:
       - text: Home
         href: index.qmd
+      - text: Research
+        href: research/index.qmd
+      - text: Stories
+        href: stories/index.qmd
       - text: Blog
         href: blog/index.qmd
+      - text: Data
+        href: data/index.qmd
       - text: About
         href: about.qmd
 
@@ -29,6 +39,4 @@ format:
     fontcolor: "black"
     linkcolor: "black"
     mainfont: "Atkinson Hyperlegible"
-    fontsize: 16px
     theme: [cosmo, styles.scss]
-

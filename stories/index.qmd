@@ -1,0 +1,11 @@
+---
+title: "Stories"
+description: "In-depth interactive features on the people, places, and forces shaping Cabarrus County."
+listing:
+  contents: "*.qmd"
+  type: grid
+  sort: "date desc"
+  image-height: 200px
+  fields: [image, title, description, categories]
+page-layout: full
+---

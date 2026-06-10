@@ -1,0 +1,87 @@
+---
+title: "Behind the Numbers: How We Measured Housing Affordability"
+author: Pete Benbow
+date: April 15, 2026
+format: html
+description: "A plain-language explanation of the data sources, calculations, and analytical choices behind our first Data Brief on home prices, rents, and wages in Cabarrus County."
+categories: [methodology, housing, affordability]
+image: ../../img/cabarrusdatalab.png
+---
+
+Our [first Data Brief](../../data-briefs/0001-home-prices-wages.pdf) asks a deceptively simple question: have home prices and rents in Cabarrus County risen faster than wages? To answer it, we needed to choose the right data, define what "faster" means mathematically, and be honest about what we can and cannot conclude. This post walks through each of those choices.
+
+## Where the data come from
+
+All three measures in the brief (median home value, median gross rent, and median household income) come from the **American Community Survey (ACS)**, a continuous survey conducted by the U.S. Census Bureau that samples roughly 3.5 million households nationwide each year.
+
+We used the **1-year estimates**, which reflect a single calendar year of data and give us the most up-to-date annual snapshot available. The tradeoff is precision: 1-year estimates have higher margins of error than the 5-year pooled estimates because they're based on a smaller sample. For a county the size of Cabarrus (~230,000 residents), the 1-year estimates are published starting in 2006 and are generally reliable for tracking year-over-year trends in broadly defined metrics like median income.
+
+The three ACS variables we used:
+
+| Variable | ACS Table | What it measures |
+|---|---|---|
+| Median home value | B25077 | Self-reported market value of owner-occupied homes |
+| Median gross rent | B25064 | Monthly rent plus utilities, for renter-occupied units |
+| Median household income | B19013 | Total pre-tax income for all household members |
+
+One year is conspicuously absent from our charts: **2020**. The Census Bureau did not release 1-year ACS estimates for 2020 because the COVID-19 pandemic severely disrupted survey operations and response rates fell below acceptable thresholds. We skip 2020 entirely rather than interpolate.
+
+## How the index was calculated
+
+Plotting raw dollar values of home prices, rents, and incomes on the same chart is technically possible but misleading: a $200,000 home and a $50,000 income look wildly different in scale even though the relationship between them is what matters.
+
+Instead, we converted each series to an **index with 2006 as the base year (= 100)**. The formula is straightforward:
+
+$$\text{Index}_t = \frac{\text{Value}_t}{\text{Value}_{2006}} \times 100$$
+
+For example, if median home values were \$150,000 in 2006 and \$280,000 in 2023, the 2023 index value would be:
+
+$$\frac{280{,}000}{150{,}000} \times 100 = 186.7$$
+
+This means home values were 86.7% higher in 2023 than in 2006. The index lets us compare growth *rates* across three series that started at very different dollar levels. A value above 100 means the metric has grown since 2006; a value below 100 would mean it shrank.
+
+We chose 2006 as the base year because it is the earliest year for which all three ACS 1-year estimates are reliably available for Cabarrus County.
+
+For **annual rent**, we multiply the ACS's monthly gross rent figure by 12. This makes rent directly comparable to the annual income figure and avoids the ambiguity of comparing a monthly cost to an annual income. The conversion is:
+
+$$\text{Annual Rent} = \text{Monthly Gross Rent} \times 12$$
+
+## How the price-to-income ratio was calculated
+
+The price-to-income ratio is one of the most widely used measures of housing affordability among economists, urban planners, and real estate researchers. It answers the question: *how many years of income would it take to buy the median home, assuming you spent your entire income on it?*
+
+$$\text{Price-to-Income Ratio} = \frac{\text{Median Home Value}}{\text{Median Household Income}}$$
+
+A ratio of 3.0, for example, means the median home costs exactly three times the median annual household income.
+
+The **3× threshold** used in our chart is a conventional benchmark. It was popularized by researchers at Harvard's Joint Center for Housing Studies and is used by the National Association of Realtors as a rule of thumb for "affordable" homeownership. The logic behind it: if a household puts 20% down and takes a 30-year fixed mortgage on a home priced at 3× their income, the monthly payment (at historical average rates) consumes roughly 25–28% of gross income, a level most financial advisors consider manageable.
+
+The threshold is not a hard rule. A ratio of 3.1 isn't a cliff edge. But it serves as a useful benchmark for tracking directional trends over time, and Cabarrus County's ratio has risen well above it.
+
+## What we can and cannot conclude
+
+A few important caveats:
+
+**These are nominal values.** We did not adjust for inflation. This means the index reflects changes in *current dollars*, not purchasing power. If incomes rose 50% but inflation also ran at 50%, residents wouldn't actually be better off, but our index would show income growth. For a brief focused on relative comparisons (home values vs. incomes, both in nominal terms), this is defensible: what matters is whether your paycheck can keep up with what landlords and sellers are actually charging, not whether it's keeping up with the CPI.
+
+**Medians hide distribution.** The ACS median is the middle value: half of households earn more, half earn less. A rising median income could mask stagnant wages at the bottom of the distribution even as high earners pull the median up. Similarly, a rising median home value could reflect a flood of high-end construction rather than appreciation in existing stock. We're measuring the middle of the market, not its full shape.
+
+**Home value is self-reported.** The ACS asks homeowners to estimate what their home would sell for today. Self-reported valuations tend to be slightly lower than actual transaction prices and lag real-time market movements. For long-run trends, however, self-reported values track closely with sale price indices.
+
+**Income and home value are not matched at the household level.** We're comparing the *county-wide median* home value to the *county-wide median* household income. These are not necessarily the income and home value of the same household. A household earning the county median income may face a home-buying market where the typical home costs much more than what our ratio implies if they're competing against higher-income buyers.
+
+## What this means for Cabarrus County
+
+Cabarrus County is one of the fastest-growing counties in North Carolina, driven largely by its proximity to Charlotte. That growth has real benefits: a broader tax base, more employers, and expanding amenities. But it has also introduced a structural affordability problem that the data make difficult to ignore.
+
+For **current homeowners**, rising values are a source of wealth, at least on paper. For **first-time buyers** (especially younger residents, essential workers, and families without inherited equity), the math has become increasingly punishing. A median-priced home in the county now requires a household income well above the county median just to pass standard lender underwriting criteria.
+
+For **renters**, the situation is similarly challenging. Annual rents have grown faster than incomes over this period, meaning more income is devoted to housing costs, leaving less for savings, health care, and other essentials. Research consistently shows that households spending more than 30% of income on housing face measurably worse health and economic outcomes.
+
+For **local decision-makers** (county commissioners, planning boards, and economic development offices), this data offers a concrete empirical foundation for housing policy discussions. It is not enough to note that Cabarrus is "affordable compared to Charlotte." The relevant comparison is whether Cabarrus residents can afford to *live in Cabarrus*, and on that measure, the trends are moving in the wrong direction.
+
+Future briefs will examine which neighborhoods are most affected, how Cabarrus compares to similar fast-growing counties, and what policy levers have shown evidence of moderating price growth elsewhere.
+
+---
+
+*Data: U.S. Census Bureau, American Community Survey, 1-Year Estimates (2006–2023). Analysis by Pete Benbow, Cabarrus Data Lab.*

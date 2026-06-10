@@ -1,0 +1,84 @@
+---
+title: "Research"
+description: "Data-driven analysis of the social and economic forces shaping Cabarrus County."
+listing:
+  type: default
+  contents:
+    - population/index.qmd
+    - housing/index.qmd
+    - farmland/index.qmd
+  sort: "date desc"
+  sort-ui: false
+  filter-ui: true
+  categories: false
+  fields: [image, title, description, date, author, categories]
+  image-height: 180px
+  image-align: left
+page-layout: full
+---
+
+```{=html}
+<style>
+.listing-filter-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.listing-filter-row .quarto-listing-filter {
+  width: 400px;
+  margin-bottom: 0 !important;
+}
+.quarto-listing-filter .form-control,
+.quarto-listing-filter .input-group-text {
+  font-size: 1.25rem;
+  padding: 0.5rem 1rem;
+}
+#listing-category-select {
+  width: auto;
+  min-width: 240px;
+  font-size: 1.25rem;
+  padding: 0.5rem 1rem;
+}
+.quarto-post {
+  background-color: #ffffff;
+  padding-top: 15px;
+}
+</style>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var filterDiv = document.querySelector(".quarto-listing-filter");
+  if (!filterDiv) return;
+
+  var select = document.createElement("select");
+  select.id = "listing-category-select";
+  select.className = "form-select form-select-lg";
+
+  [
+    ["", "All Categories"],
+    ["Population", "Population"],
+    ["Housing", "Housing"],
+    ["Land Use", "Land Use"]
+  ].forEach(function (pair) {
+    var opt = document.createElement("option");
+    opt.value = pair[0];
+    opt.textContent = pair[1];
+    select.appendChild(opt);
+  });
+
+  select.addEventListener("change", function () {
+    var val = this.value;
+    window.quartoListingCategory(
+      val === "" ? "" : btoa(encodeURIComponent(val))
+    );
+  });
+
+  var row = document.createElement("div");
+  row.className = "listing-filter-row";
+  filterDiv.parentNode.insertBefore(row, filterDiv);
+  row.appendChild(filterDiv);
+  row.appendChild(select);
+});
+</script>
+```

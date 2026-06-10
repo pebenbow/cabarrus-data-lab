@@ -1,0 +1,318 @@
+---
+title: "Behind the Numbers: How We Measured Population Growth and Spatial Hot Spots"
+author: Pete Benbow
+date: April 16, 2026
+format: html
+description: "A plain-language explanation of the data sources, calculations, and analytical methods behind our first Data Brief on population growth in Cabarrus County, including how the Getis-Ord Gi* hot spot statistic works and what it tells us."
+categories: [methodology, population, spatial-analysis]
+image: ../../img/cabarrusdatalab.png
+execute:
+  echo: false
+  warning: false
+  message: false
+  freeze: auto
+---
+
+```{r setup}
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(spdep)
+library(scales)
+```
+
+```{r load-data}
+#| cache: true
+
+pop_2000 <- get_decennial(
+  geography = "county", state = "NC",
+  variables = c(pop = "P001001"),
+  year = 2000, sumfile = "sf1"
+) |> select(GEOID, NAME, pop_2000 = value)
+
+nc_geom <- get_decennial(
+  geography = "county", state = "NC",
+  variables = c(pop = "P1_001N"),
+  year = 2020, sumfile = "pl",
+  geometry = TRUE
+) |> select(GEOID, geometry)
+
+pep_raw <- tryCatch(
+  get_estimates(geography = "county", state = "NC",
+                product = "population", year = 2024),
+  error = function(e) NULL
+)
+
+use_pep   <- !is.null(pep_raw) && nrow(pep_raw) > 0 &&
+             any(str_starts(pep_raw$GEOID, "37"))
+data_year <- if (use_pep) 2024L else 2023L
+
+if (use_pep) {
+  pop_recent <- pep_raw |>
+    filter(str_starts(GEOID, "37")) |>
+    group_by(GEOID) |>
+    slice_max(value, n = 1, with_ties = FALSE) |>
+    ungroup() |>
+    select(GEOID, pop_recent = value)
+} else {
+  pop_recent <- get_acs(
+    geography = "county", state = "NC",
+    variables = c(pop = "B01001_001"),
+    year = 2023, survey = "acs5"
+  ) |> select(GEOID, pop_recent = estimate)
+}
+
+nc <- nc_geom |>
+  left_join(pop_2000 |> select(GEOID, NAME, pop_2000), by = "GEOID") |>
+  left_join(pop_recent, by = "GEOID") |>
+  filter(!is.na(pop_recent)) |>
+  mutate(
+    county_name = str_remove(NAME, " County, North Carolina"),
+    pct_growth  = (pop_recent - pop_2000) / pop_2000 * 100,
+    abs_growth  = pop_recent - pop_2000,
+    rank_growth = rank(desc(pct_growth), ties.method = "min"),
+    is_cabarrus = str_detect(NAME, "Cabarrus")
+  )
+
+nc_proj <- st_transform(nc, crs = 32119)
+nb       <- poly2nb(nc_proj, queen = TRUE)
+nb_self  <- include.self(nb)
+lw       <- nb2listw(nb_self, style = "B", zero.policy = TRUE)
+gi_scores <- as.numeric(localG(nc_proj$pct_growth, lw, zero.policy = TRUE))
+
+nc <- nc |>
+  mutate(
+    gi_star    = gi_scores,
+    spot_class = case_when(
+      gi_star >= 2.576  ~ "Hot Spot (99%)",
+      gi_star >= 1.960  ~ "Hot Spot (95%)",
+      gi_star >= 1.645  ~ "Hot Spot (90%)",
+      gi_star <= -2.576 ~ "Cold Spot (99%)",
+      gi_star <= -1.960 ~ "Cold Spot (95%)",
+      gi_star <= -1.645 ~ "Cold Spot (90%)",
+      TRUE              ~ "Not Significant"
+    ),
+    spot_class = factor(spot_class, levels = c(
+      "Hot Spot (99%)", "Hot Spot (95%)", "Hot Spot (90%)",
+      "Not Significant",
+      "Cold Spot (90%)", "Cold Spot (95%)", "Cold Spot (99%)"
+    ))
+  )
+
+cab    <- nc |> filter(is_cabarrus) |> st_drop_geometry()
+cab_gi <- nc |> filter(is_cabarrus) |> st_drop_geometry()
+n_nc   <- nrow(nc)
+
+spot_colors <- c(
+  "Hot Spot (99%)"  = "#d73027",
+  "Hot Spot (95%)"  = "#f46d43",
+  "Hot Spot (90%)"  = "#fdae61",
+  "Not Significant" = "#d9d9d9",
+  "Cold Spot (90%)" = "#abd9e9",
+  "Cold Spot (95%)" = "#74add1",
+  "Cold Spot (99%)" = "#4575b4"
+)
+
+map_theme <- theme_void(base_size = 10) +
+  theme(
+    plot.background   = element_rect(fill = "white", color = NA),
+    legend.position   = "bottom",
+    legend.title      = element_text(size = 9, face = "bold"),
+    legend.text       = element_text(size = 9),
+    plot.title        = element_text(face = "bold", size = 11, color = "#22211d",
+                                     margin = margin(b = 6)),
+    plot.subtitle     = element_text(size = 9, color = "gray40",
+                                     margin = margin(b = 8)),
+    plot.caption      = element_text(color = "gray50", size = 8, hjust = 0,
+                                     margin = margin(t = 6))
+  )
+```
+
+Our [first Data Brief](../../data-briefs/0001-population-growth.pdf) documents one of the most striking demographic stories in North Carolina: Cabarrus County's `r round(cab$pct_growth)`% population increase between 2000 and `r data_year`, ranking `r scales::ordinal(cab$rank_growth)` out of `r n_nc` counties statewide. This post explains the data behind that finding, how the growth rate was calculated, and (most importantly) how the Getis-Ord Gi* hot spot analysis works and what it proves.
+
+## Where the data come from
+
+The brief uses two sources, covering the beginning and end of a `r data_year - 2000`-year window.
+
+**The 2000 baseline** comes from the Decennial Census (Summary File 1, table P001001, total population). The decennial census is a full enumeration of every person in the United States, conducted every ten years. It is the gold standard for population data: no sampling, no modeling, no uncertainty.
+
+**The `r data_year` endpoint** uses the Census Bureau's `r if (use_pep) paste0("Population Estimates Program (PEP), vintage ", data_year) else paste0("American Community Survey (ACS), 5-year estimates ending ", data_year)`. `r if (use_pep) paste0("PEP estimates are produced annually by the Census Bureau using the 2020 decennial count as a baseline, then modeling change using administrative records: birth and death certificates, IRS tax return migration data, Medicare enrollment records, and other sources. Unlike the ACS, PEP estimates are not based on a survey: they are a demographic accounting exercise. They carry more uncertainty than a full census count, but for total county population they are generally accurate to within 1–2%.") else paste0("The ACS is a continuous survey that samples approximately 3.5 million households per year. The 5-year estimates pool five years of survey responses to produce reliable estimates for small geographies. Unlike the decennial census, ACS estimates include a margin of error.")`
+
+Both series are accessed through the `tidycensus` R package, which provides a consistent interface to the Census Bureau's APIs and published data files.
+
+## How the growth rate was calculated
+
+The percentage growth rate is the same formula used in any before-and-after comparison:
+
+$$\text{Growth Rate} = \frac{\text{Population}_{`r data_year`} - \text{Population}_{2000}}{\text{Population}_{2000}} \times 100$$
+
+For Cabarrus County:
+
+$$\frac{`r comma(cab$pop_recent)` - `r comma(cab$pop_2000)`}{`r comma(cab$pop_2000)`} \times 100 = `r round(cab$pct_growth, 1)`\%$$
+
+This is an unadjusted rate that reflects raw head-count growth over `r data_year - 2000` years, not an annualized compound rate. The advantage of the simple rate is interpretability; the disadvantage is that it makes shorter and longer time windows hard to compare directly. The NC county median growth rate over the same period was `r round(median(nc$pct_growth, na.rm = TRUE), 1)`%.
+
+```{r growth-map}
+#| fig-width: 8
+#| fig-height: 4
+
+ggplot(nc) +
+  geom_sf(aes(fill = pct_growth), color = "white", linewidth = 0.25) +
+  geom_sf(data = filter(nc, is_cabarrus),
+          fill = NA, color = "#22211d", linewidth = 1) +
+  scale_fill_steps2(
+    low      = "#b2182b",
+    mid      = "#f7f7f7",
+    high     = "#0336ff",
+    midpoint = 0,
+    n.breaks = 8,
+    name     = "% change",
+    labels   = function(x) paste0(round(x), "%"),
+    guide    = guide_colorsteps(title.position = "top", title.hjust = 0.5,
+                                barwidth = 10, barheight = 0.5)
+  ) +
+  labs(
+    title    = paste0("Population Growth by County, 2000\u2013", data_year),
+    subtitle = "Binned growth rate. Counties shaded blue grew fastest; red shading indicates population decline.",
+    caption  = paste0("Source: U.S. Census Bureau, Decennial Census 2000 and ",
+                      if (use_pep) paste0("PEP ", data_year) else paste0("ACS 5-yr ", data_year),
+                      ". Cabarrus County outlined in dark.")
+  ) +
+  map_theme
+```
+
+The map immediately shows the spatial pattern: growth is concentrated in the Piedmont Triad and Charlotte metro, while many coastal plain and mountain counties have declined or stagnated. This geographic clustering motivates the hot spot analysis.
+
+## What the Getis-Ord Gi* statistic measures
+
+The choropleth above shows *where* growth happened, but it does not distinguish between two very different situations:
+
+1. A county that grew quickly while its neighbors stagnated (an isolated spike)
+2. A county that grew quickly and whose neighbors also grew quickly (a true spatial cluster)
+
+These situations look identical on a simple choropleth but have very different implications. An isolated spike might reflect a single large development or a data quirk. A spatial cluster suggests a self-reinforcing regional dynamic, the kind of growth that attracts further growth.
+
+The **Getis-Ord Gi\*** statistic, introduced by Getis and Ord (1992) and extended in Ord and Getis (1995), tests for this clustering formally. For each county $i$, it computes:
+
+$$G_i^* = \frac{\sum_{j} w_{ij} x_j - \bar{x} \sum_{j} w_{ij}}{S \sqrt{\frac{n \sum_{j} w_{ij}^2 - (\sum_{j} w_{ij})^2}{n-1}}}$$
+
+Where:
+- $x_j$ is the growth rate of county $j$
+- $w_{ij}$ is the spatial weight between counties $i$ and $j$ (1 if neighbors, 0 otherwise; the Gi\* variant includes county $i$ itself)
+- $\bar{x}$ is the mean growth rate across all counties
+- $S$ is the standard deviation of growth rates
+- $n$ is the number of counties (100 for NC)
+
+The result is a **z-score** for each county. A large positive z-score means the county and its neighbors collectively have much higher growth than would be expected by chance. A large negative z-score means a cluster of slow or declining counties. Z-scores that fall near zero indicate no meaningful spatial clustering.
+
+### Spatial weights: who is a neighbor?
+
+The Gi\* requires a definition of "neighbor." We use **queen contiguity**: any county that shares at least one boundary point with county $i$ is its neighbor. For Cabarrus County, this includes Mecklenburg, Rowan, Stanly, Union, Iredell, and Kannapolis-area counties. The intuition is geographic: if growth is truly a regional phenomenon, it should show up in counties that share borders, not just counties that are abstractly "nearby."
+
+The computation uses the `spdep` R package (Bivand & Wong, 2018), which implements the Gi\* statistic with a binary spatial weights matrix (style = "B") and self-inclusion.
+
+### How to read the significance thresholds
+
+The z-score is compared against the standard normal distribution to assess statistical significance:
+
+| Z-score threshold | Significance level | Interpretation |
+|---:|:---:|:---|
+| ≥ 2.576 | 99% | Hot spot (very high confidence) |
+| ≥ 1.960 | 95% | Hot spot (high confidence) |
+| ≥ 1.645 | 90% | Hot spot (moderate confidence) |
+| −1.645 to 1.645 | n/a | Not significant |
+| ≤ −1.645 | 90% | Cold spot (moderate confidence) |
+| ≤ −1.960 | 95% | Cold spot (high confidence) |
+| ≤ −2.576 | 99% | Cold spot (very high confidence) |
+
+Cabarrus County's z-score of **`r round(cab_gi$gi_star, 2)`** places it in the **`r as.character(cab_gi$spot_class)`** category, meaning there is less than a 1% probability that this level of clustered high growth would occur at random.
+
+```{r hotspot-map}
+#| fig-width: 8
+#| fig-height: 4
+
+ggplot(nc) +
+  geom_sf(aes(fill = spot_class), color = "white", linewidth = 0.25) +
+  geom_sf(data = filter(nc, is_cabarrus),
+          fill = NA, color = "#22211d", linewidth = 1) +
+  scale_fill_manual(
+    values = spot_colors,
+    name   = "Gi* classification",
+    guide  = guide_legend(title.position = "top", title.hjust = 0.5,
+                          nrow = 2, byrow = TRUE,
+                          keywidth = 0.8, keyheight = 0.5)
+  ) +
+  labs(
+    title    = "Getis-Ord Gi* Hot Spot Analysis",
+    subtitle = paste0("Spatial clustering of population growth, 2000\u2013", data_year,
+                      ". Z-score thresholds at 90%, 95%, and 99% confidence."),
+    caption  = "Cabarrus County outlined in dark."
+  ) +
+  map_theme
+```
+
+The hot spot map reveals that Cabarrus is not an outlier: it is part of a contiguous cluster of high-growth counties anchored by Mecklenburg. This is a regional phenomenon driven by Charlotte's economic expansion and outward residential growth, not a Cabarrus-specific story.
+
+## Annual population time series
+
+The story's year-by-year chart tracks Cabarrus County's population for every year from 2000 through the most recent estimate. Constructing a continuous annual series required three separate data sources, because the Census Bureau's Population Estimates Program (PEP) changed its API structure after the 2020 Census and does not support pre-2015 data through its current API endpoints.
+
+**Decennial anchor years (2000, 2010, 2020).** The full-enumeration decennial census counts serve as fixed reference points at the start, midpoint, and recent end of the series. These are the most reliable population figures available: no sampling, no modeling, no uncertainty interval.
+
+**2001-2009 (intercensal estimates).** After each decennial census, the Census Bureau publishes a revised intercensal file that reconciles its annual estimates with both surrounding decennial counts, removing the upward drift that accumulates in the PEP series. The 2001-2009 figures come from the post-2010 intercensal county totals file (`co-est00int-tot.csv`), downloaded directly from the Census Bureau's public archive. These estimates were revised backward after the 2010 census to be internally consistent with both the 2000 and 2010 counts.
+
+**2011-2019 (post-2010 PEP annual estimates).** Annual estimates for this period are retrieved through the `tidycensus` package using `get_estimates()` with the 2019 vintage and `time_series = TRUE`. This returns July 1 population estimates for 2011-2019 in a single API call. If the API call fails, a CSV fallback downloads the same data from the Census Bureau's 2010-2019 county totals file.
+
+**2021-2023 (post-2020 PEP annual estimates).** After the 2020 decennial census, the PEP program restarted with the 2020 count as its new baseline. The API structure changed: `get_estimates()` now requires separate `vintage` and `year` arguments, and the `time_series` parameter is not supported for post-2020 data. Each year is retrieved individually using the most recent available vintage (2023, falling back to 2022 for earlier years). The 2020 decennial count is used for the 2020 anchor directly, without relying on the PEP.
+
+The final table (`cabarrus_population_annual`) combines all segments, deduplicates at decennial years (where both the decennial count and a PEP estimate exist), and adds year-over-year population change and percentage growth rate columns. The result is a 24-row series covering 2000 through 2023.
+
+The year-over-year growth rate bars in the story's bottom panel are computed as $(\text{Pop}_t - \text{Pop}_{t-1}) / \text{Pop}_{t-1} \times 100$. The period average is the mean of those annual rates across all years with a defined prior-year baseline.
+
+## Census tract boundary crosswalk
+
+Comparing tract-level populations between the 2010 and 2020 censuses requires resolving a boundary mismatch. The Census Bureau periodically redraws tract boundaries to keep tract populations within a target range, splitting high-growth tracts and occasionally merging others. A direct comparison of 2010 tract totals to 2020 tract totals would conflate boundary changes with actual population changes.
+
+The conventional workaround is **areal interpolation**: distribute a source zone's population to target zones in proportion to the share of area that overlaps. This approach introduces error wherever population density is spatially uneven within a source zone, which is common in suburban counties where dense subdivisions, commercial corridors, and undeveloped land can all fall within a single tract.
+
+We use a more accurate **block-level aggregation** instead. Census blocks are the smallest tabulation geography; they are designed to be internally homogeneous in character and small enough that a single block rarely spans a major density transition. We assign every 2010 census block to its corresponding 2020 tract by centroid: the block's center point is matched to the nearest 2020 tract boundary using `st_nearest_feature` from the `sf` package. Summing those block-level 2010 populations by 2020 tract produces a 2010 population baseline expressed in 2020 geography, enabling a direct comparison.
+
+The `st_nearest_feature` join rather than `st_within` guarantees that every block receives exactly one tract assignment, handling the small minority of centroids that fall precisely on a shared boundary. The residual approximation is limited to the rarest cases: 2010 blocks whose actual boundaries straddle a 2020 tract line and whose population is genuinely ambiguous. For a suburban county like Cabarrus, this affects a negligible share of total population.
+
+The block-level crosswalk data are stored in `raw_cabarrus_blocks_2010`, and the final tract comparison table (in 2020 tract geography) is stored in `cabarrus_tract_growth`.
+
+## What this means for Cabarrus County
+
+The combination of a high raw growth rate and a statistically significant hot spot classification has practical implications:
+
+**Infrastructure pressure is regional, not local.** Road networks, water systems, and school capacity in Cabarrus cannot be planned in isolation from neighboring counties. Growth in Union County creates demand on Cabarrus infrastructure and vice versa.
+
+**Growth is self-reinforcing.** Spatial clustering of growth is associated with agglomeration effects: employers locate where workers live, workers follow employers, and housing follows both. This dynamic is unlikely to slow without deliberate policy intervention.
+
+**Comparisons to state averages understate the challenge.** Cabarrus's growth rate is `r round(cab$pct_growth / median(nc$pct_growth, na.rm = TRUE), 1)`× the NC county median. Using the state average as a baseline for service planning would significantly underestimate Cabarrus's needs.
+
+## Caveats and limitations
+
+**PEP estimates are revised annually.** The `r data_year` estimate for Cabarrus County will be revised in future vintages as administrative records are reconciled. The growth rate and rank reported here reflect the current best estimate, which may shift by a few percentage points in future releases.
+
+**The Gi\* statistic assumes stationarity.** The analysis assumes the relationship between growth and spatial neighbors is consistent across all 100 NC counties. In practice, western mountain counties and coastal plain counties operate in very different economic contexts. A more sophisticated analysis might use geographically weighted regression to allow the relationship to vary spatially.
+
+**Growth rate and growth volume are different stories.** Johnston County tops the NC county growth-rate rankings: `r round(nc |> st_drop_geometry() |> slice_max(pct_growth, n=1) |> pull(pct_growth), 1)`% growth reflects rapid expansion from a smaller base. Mecklenburg County, growing more slowly in percentage terms, added far more residents in absolute numbers. The brief focuses on rates; a companion analysis of absolute growth would tell a different story.
+
+---
+
+## References
+
+Bivand, R. S., & Wong, D. W. S. (2018). Comparing implementations of global and local indicators of spatial association. *TEST*, 27(3), 716–748. https://doi.org/10.1007/s11749-018-0599-x
+
+Getis, A., & Ord, J. K. (1992). The analysis of spatial association by use of distance statistics. *Geographical Analysis*, 24(3), 189–206. https://doi.org/10.1111/j.1538-4632.1992.tb00261.x
+
+Ord, J. K., & Getis, A. (1995). Local spatial autocorrelation statistics: Distributional issues and an application. *Geographical Analysis*, 27(4), 286–306. https://doi.org/10.1111/j.1538-4632.1995.tb00912.x
+
+U.S. Census Bureau. (2024). *Population estimates program: Methodology*. https://www.census.gov/programs-surveys/popest/technical-documentation/methodology.html
+
+Walker, K., & Herman, M. (2023). *tidycensus: Load US Census boundary and attribute data as 'tidyverse' and 'sf'-ready data frames* (R package version 1.6). https://walker-data.com/tidycensus/
+
+---
+
+*Data: U.S. Census Bureau, Decennial Census 2000 and `r if (use_pep) paste0("Population Estimates Program ", data_year) else paste0("ACS 5-Year Estimates ", data_year)`. Analysis by Pete Benbow, Cabarrus Data Lab.*

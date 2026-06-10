@@ -2,6 +2,8 @@
   {
     "listing": "/index.html",
     "items": [
+      "/blog/posts/0004-population-brief-methodology.html",
+      "/blog/posts/0003-housing-brief-methodology.html",
       "/blog/posts/0002-intro.html",
       "/blog/posts/0001-announcing-cdl.html"
     ]
@@ -9,8 +11,24 @@
   {
     "listing": "/blog/index.html",
     "items": [
+      "/blog/posts/0004-population-brief-methodology.html",
+      "/blog/posts/0003-housing-brief-methodology.html",
       "/blog/posts/0002-intro.html",
       "/blog/posts/0001-announcing-cdl.html"
+    ]
+  },
+  {
+    "listing": "/research/index.html",
+    "items": [
+      "/research/population/index.html",
+      "/research/housing/index.html",
+      "/research/farmland/index.html"
+    ]
+  },
+  {
+    "listing": "/stories/index.html",
+    "items": [
+      "/stories/population-growth.html"
     ]
   }
 ]

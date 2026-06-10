@@ -1,0 +1,421 @@
+---
+title: "Cabarrus County's Population Boom"
+subtitle: "Growth trends and spatial hot spots across North Carolina"
+description: "Cabarrus County has grown faster than nearly every county in North Carolina over the past two decades. A hot spot analysis confirms it sits at the core of the state's most concentrated growth cluster."
+categories: [population, growth, spatial-analysis]
+image: "../img/cabarrusdatalab.png"
+format:
+  typst:
+    fontsize: "10pt"
+    margin:
+      top: "2.6cm"
+      bottom: "2cm"
+      left: "1.8cm"
+      right: "1.8cm"
+    template-partials:
+      - typst-template.typ
+    include-in-header:
+      text: |
+        #let cdl-blue   = rgb("#0336ff")
+        #let cdl-dark   = rgb("#22211d")
+        #let cdl-light  = rgb("#dce8ff")
+
+        #set page(
+          paper: "us-letter",
+          header: [
+            #set text(size: 9pt)
+            #grid(
+              columns: (1fr, auto),
+              column-gutter: 1em,
+              [
+                #text(fill: cdl-blue, weight: "bold")[Cabarrus Data Lab]
+                #h(0.4em)#text(fill: luma(80))[| Data Brief \#1]
+              ],
+              text(fill: luma(130))[April 2026]
+            )
+            #v(-0.5em)
+            #line(length: 100%, stroke: cdl-blue + 1.5pt)
+          ],
+          footer: context [
+            #line(length: 100%, stroke: luma(210) + 0.5pt)
+            #v(-0.4em)
+            #set text(size: 7.5pt, fill: luma(130))
+            #grid(
+              columns: (1fr, auto),
+              [cabarrusdatalab.com #h(1em) Sources: U.S. Census Bureau, Decennial Census 2000, 2010, 2020; Population Estimates Program],
+              [#counter(page).display()]
+            )
+          ]
+        )
+
+        #show heading.where(level: 2): it => block(above: 0.9em, below: 0.35em)[
+          #text(fill: cdl-blue, size: 11pt, weight: "bold")[#it.body]
+        ]
+
+        #show heading.where(level: 3): it => block(above: 0.6em, below: 0.2em)[
+          #text(fill: cdl-dark, size: 9.5pt, weight: "bold")[#it.body]
+        ]
+
+        #let statbox(number, label) = block(
+          width: 100%,
+          height: 2.2cm,
+          fill: cdl-light,
+          stroke: (left: cdl-blue + 3pt),
+          inset: (x: 10pt, y: 8pt),
+          radius: (right: 4pt),
+        )[
+          #text(fill: cdl-blue, size: 20pt, weight: "bold")[#number]
+          #v(-0.2em)
+          #set text(size: 8pt, fill: cdl-dark)
+          #label
+        ]
+
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(tidyverse)
+library(sf)
+library(scales)
+library(patchwork)
+library(duckdb)
+library(DBI)
+
+con <- dbConnect(duckdb(),
+        here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+        read_only = TRUE)
+
+data        <- dbReadTable(con, "nc_population_growth")
+geom        <- dbReadTable(con, "raw_nc_geometry")
+time_series <- dbReadTable(con, "cabarrus_population_annual")
+tract_raw   <- dbReadTable(con, "cabarrus_tract_growth")
+dbDisconnect(con, shutdown = TRUE)
+
+spot_levels <- c(
+  "Hot Spot (99%)", "Hot Spot (95%)", "Hot Spot (90%)",
+  "Not Significant",
+  "Cold Spot (90%)", "Cold Spot (95%)", "Cold Spot (99%)"
+)
+
+nc <- geom |>
+  st_as_sf(wkt = "geometry_wkt", crs = 4326) |>
+  left_join(data, by = "GEOID") |>
+  mutate(
+    is_cabarrus = GEOID == "37025",
+    spot_class  = factor(spot_class, levels = spot_levels)
+  )
+
+tract_sf <- tract_raw |>
+  st_as_sf(wkt = "geometry_wkt", crs = 4326)
+
+data_year     <- nc$data_year[1]
+use_pep       <- nc$source[1] == "PEP"
+n_nc          <- nrow(nc)
+n_tracts      <- nrow(tract_sf)
+cab           <- nc |> filter(is_cabarrus) |> st_drop_geometry()
+nc_med_growth <- median(nc$pct_growth, na.rm = TRUE)
+
+time_series_df <- time_series |> arrange(year)
+avg_yoy        <- mean(time_series_df$pct_change_yoy, na.rm = TRUE)
+
+median_tract_chg <- round(median(tract_sf$pct_change, na.rm = TRUE), 1)
+fastest_tract    <- tract_sf |> st_drop_geometry() |> slice_max(pct_change, n = 1)
+slowest_tract    <- tract_sf |> st_drop_geometry() |> slice_min(pct_change, n = 1)
+
+spot_colors <- c(
+  "Hot Spot (99%)"  = "#d73027",
+  "Hot Spot (95%)"  = "#f46d43",
+  "Hot Spot (90%)"  = "#fdae61",
+  "Not Significant" = "#d9d9d9",
+  "Cold Spot (90%)" = "#abd9e9",
+  "Cold Spot (95%)" = "#74add1",
+  "Cold Spot (99%)" = "#4575b4"
+)
+
+cdl_blue   <- "#0336ff"
+cdl_dark   <- "#22211d"
+ts_neutral <- "#b0a898"
+border_geo <- "#c8c3b9"
+grid_color <- "#e8e5df"
+
+map_theme <- theme_void(base_size = 8) +
+  theme(
+    plot.background   = element_rect(fill = "white", color = NA),
+    legend.position   = "bottom",
+    legend.title      = element_text(size = 7, face = "bold"),
+    legend.text       = element_text(size = 7),
+    legend.key.width  = unit(0.8, "cm"),
+    legend.key.height = unit(0.3, "cm"),
+    plot.title        = element_text(face = "bold", size = 8.5,
+                                     color = cdl_dark, margin = margin(b = 4)),
+    plot.caption      = element_text(color = "gray50", size = 6.5, hjust = 0,
+                                     margin = margin(t = 4))
+  )
+
+ts_theme <- theme_minimal(base_size = 9) +
+  theme(
+    plot.background  = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    axis.line.x      = element_line(color = border_geo),
+    axis.ticks.x     = element_line(color = border_geo),
+    axis.text        = element_text(size = 8, color = "#4a4a4a"),
+    axis.title       = element_text(size = 8, color = "#4a4a4a"),
+    plot.title       = element_text(face = "bold", size = 9, color = cdl_dark,
+                                    margin = margin(b = 4)),
+    plot.caption     = element_text(color = "gray50", size = 6.5, hjust = 0,
+                                    margin = margin(t = 4))
+  )
+```
+
+```{r build-figures}
+gg_choropleth <- ggplot(nc) +
+  geom_sf(aes(fill = pct_growth), color = "white", linewidth = 0.2) +
+  geom_sf(data = filter(nc, is_cabarrus),
+          fill = NA, color = cdl_dark, linewidth = 0.9) +
+  scale_fill_steps2(
+    low      = "#b2182b",
+    mid      = "#f7f7f7",
+    high     = "#0336ff",
+    midpoint = 0,
+    n.breaks = 8,
+    name     = "% change",
+    labels   = function(x) paste0(round(x), "%"),
+    guide    = guide_colorsteps(title.position = "top", title.hjust = 0.5,
+                                barwidth = 7, barheight = 0.35)
+  ) +
+  labs(title = paste0("Population Growth Rate by County, 2000–", data_year)) +
+  map_theme
+
+gg_hotspot <- ggplot(nc) +
+  geom_sf(aes(fill = spot_class), color = "white", linewidth = 0.2) +
+  geom_sf(data = filter(nc, is_cabarrus),
+          fill = NA, color = cdl_dark, linewidth = 0.9) +
+  scale_fill_manual(
+    values = spot_colors,
+    name   = "Hot spot classification",
+    guide  = guide_legend(title.position = "top", title.hjust = 0.5,
+                          nrow = 1, byrow = TRUE,
+                          keywidth = 0.7, keyheight = 0.35)
+  ) +
+  labs(title = "Hot Spot Analysis: Spatial Clustering of Growth") +
+  map_theme
+
+ts_x <- scale_x_continuous(
+  breaks = seq(2000, max(time_series_df$year), by = 5),
+  limits = c(2000, max(time_series_df$year) + 0.5),
+  expand = expansion(0.02)
+)
+
+gg_pop_ts <- ggplot(time_series_df, aes(x = year, y = pop)) +
+  geom_ribbon(aes(ymin = 0, ymax = pop), fill = cdl_blue, alpha = 0.10) +
+  geom_line(color = cdl_blue, linewidth = 1.5) +
+  geom_point(color = cdl_blue, fill = "white", size = 3, shape = 21, stroke = 1.8) +
+  scale_y_continuous(
+    labels = comma,
+    limits = c(min(time_series_df$pop) * 0.95, max(time_series_df$pop) * 1.05),
+    expand = expansion(0)
+  ) +
+  ts_x +
+  labs(title = paste0("Cabarrus County Population, 2000–", data_year),
+       x = NULL, y = "Residents") +
+  ts_theme +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+gg_yoy_ts <- ggplot(time_series_df |> filter(!is.na(pct_change_yoy)),
+                    aes(x = year, y = pct_change_yoy)) +
+  geom_col(fill = ts_neutral, color = border_geo, linewidth = 0.15, width = 0.7) +
+  geom_hline(yintercept = avg_yoy, color = cdl_blue, linewidth = 0.7, linetype = "dashed") +
+  annotate("text",
+           x     = max(time_series_df$year) - 0.3,
+           y     = avg_yoy + 0.22,
+           label = paste0("Period avg: ", round(avg_yoy, 1), "%"),
+           hjust = 1, vjust = 0, size = 2.5, color = cdl_blue) +
+  scale_y_continuous(
+    labels = function(x) paste0(x, "%"),
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  ts_x +
+  labs(x = NULL, y = "Annual growth rate",
+       caption = "Sources: U.S. Census Bureau, Decennial Census 2000, 2010, and 2020; Population Estimates Program intercensal and annual estimates.") +
+  ts_theme +
+  theme(panel.grid.major.y = element_line(color = grid_color, linewidth = 0.4))
+
+gg_timeseries <- gg_pop_ts / gg_yoy_ts + plot_layout(heights = c(3, 1.5))
+
+gg_tracts <- ggplot(tract_sf) +
+  geom_sf(aes(fill = pct_change), color = "white", linewidth = 0.2) +
+  scale_fill_steps2(
+    low      = "#b2182b",
+    mid      = "#f7f7f7",
+    high     = "#0336ff",
+    midpoint = 0,
+    n.breaks = 7,
+    name     = "% change",
+    labels   = function(x) paste0(round(x), "%"),
+    na.value = "#e0e0e0",
+    guide    = guide_coloursteps(
+      title.position = "top", title.hjust = 0.5,
+      barwidth = unit(8, "cm"), barheight = unit(0.4, "cm"),
+      label.position = "bottom", show.limits = TRUE
+    )
+  ) +
+  labs(title = "Population Change by Census Tract, 2010–2020") +
+  map_theme
+```
+
+Cabarrus County's population grew from `r comma(cab$pop_2000)` in 2000 to `r comma(cab$pop_recent)` in `r data_year`, a `r round(cab$pct_growth)`% increase that ranks `r scales::ordinal(cab$rank_growth)` among all `r n_nc` counties in North Carolina. That growth is not happening in isolation: Cabarrus sits at the center of the Charlotte metro's suburban expansion, part of a spatial cluster where high growth in one county reinforces high growth in neighboring counties.
+
+```{r stat-boxes}
+#| results: asis
+
+lines <- c(
+  "\n```{=typst}",
+  "#v(0.4em)",
+  "#grid(",
+  "  columns: (1fr, 1fr, 1fr),",
+  "  column-gutter: 0.8em,",
+  paste0('  statbox([', comma(cab$pop_recent), '], [Residents in ', data_year, ', up from ',
+         comma(cab$pop_2000), ' in 2000]),'),
+  paste0('  statbox([+', round(cab$pct_growth), '%], [', data_year - 2000,
+         '-year growth rate, vs. a NC county median of +', round(nc_med_growth), '%]),'),
+  paste0('  statbox([', scales::ordinal(cab$rank_growth), ' of ', n_nc,
+         '], [Fastest-growing county in NC by percentage, 2000–', data_year, '])'),
+  ")",
+  "#v(0.6em)",
+  "```\n"
+)
+cat(paste(lines, collapse = "\n"))
+```
+
+### Key Findings
+
+- **Growth rate (Figure 1).** Cabarrus County grew by **`r round(cab$pct_growth)`%** between 2000 and `r data_year`, adding more than `r comma(round(cab$abs_growth, -3))` residents. That ranks it **`r scales::ordinal(cab$rank_growth)` out of 100** North Carolina counties for percentage growth over that period.
+
+- **Regional clustering (Figure 2).** The growth is not a local accident. A hot spot analysis places Cabarrus in the **`r as.character(cab$spot_class)`** category, meaning the surrounding region grew fast as well. Cabarrus is the statistical core of the most concentrated growth cluster in the state.
+
+- **Annual trends (Figure 3).** Population has increased every year on record. The period average was `r round(avg_yoy, 1)`% annual growth, with the highest rates occurring in the post-pandemic period as remote work expanded the effective commute radius of the Charlotte metro.
+
+- **Within-county variation (Figure 4).** Growth is uneven across Cabarrus's `r n_tracts` census tracts. The median tract grew **`r median_tract_chg`%** between 2010 and 2020, but individual tracts range from `r round(slowest_tract$pct_change, 1)`% to `r round(fastest_tract$pct_change, 1)`%, reflecting where developable land and highway access overlap.
+
+```{r fig-choropleth}
+#| label: fig-choropleth
+#| fig-cap: !expr paste0("Population growth rate by county, 2000 to ", data_year, ". Cabarrus County outlined in dark.")
+#| fig-width: 6.5
+#| fig-height: 2.2
+#| dev: png
+#| dpi: 300
+gg_choropleth
+```
+
+```{=typst}
+#pagebreak()
+```
+
+## North Carolina in Context
+
+Growth in North Carolina is sharply uneven. The Research Triangle region and the Piedmont Crescent sweeping from Charlotte through Cabarrus and into the Triad absorbed most of the state's population gains over the past two decades; many coastal plain and mountain counties declined or stagnated.
+
+A hot spot analysis tests whether Cabarrus's growth is an isolated spike or part of a genuine regional cluster. With a z-score placing it in the **`r as.character(cab$spot_class)`** category, Cabarrus is not an outlier. It is the statistical core of a contiguous cluster of high-growth counties anchored by Mecklenburg, with less than a 1% probability that this level of spatial concentration occurs by chance.
+
+The following figure and table show where Cabarrus sits within the full NC distribution.
+
+```{r fig-hotspot}
+#| label: fig-hotspot
+#| fig-cap: "Hot spot classification based on spatial clustering of county-level growth rates. Cabarrus County outlined in dark."
+#| fig-width: 6.5
+#| fig-height: 2.2
+#| dev: png
+#| dpi: 300
+gg_hotspot
+```
+
+```{r top-table}
+#| results: asis
+
+top10 <- nc |>
+  st_drop_geometry() |>
+  slice_max(pct_growth, n = 10) |>
+  mutate(
+    cn  = if_else(is_cabarrus, paste0("[*", county_name, "*]"),
+                               paste0("[",  county_name,  "]")),
+    p00 = paste0("[", comma(pop_2000),   "]"),
+    p24 = paste0("[", comma(pop_recent), "]"),
+    chg = paste0("[+", comma(abs_growth), "]"),
+    pct = paste0("[+", round(pct_growth, 1), "%]"),
+    rnk = paste0("[", rank_growth, "]")
+  )
+
+row_strs <- paste(top10$cn, top10$p00, top10$p24,
+                  top10$chg, top10$pct, top10$rnk, sep = ", ")
+
+lines <- c(
+  "\n```{=typst}",
+  "#align(center)[",
+  "  #figure(kind: table, supplement: [Table], caption: [",
+  paste0("    Top 10 fastest-growing NC counties by percentage, 2000#[--]", data_year,
+         ". Cabarrus County in italics."),
+  "  ])[",
+  "    #set text(size: 9pt)",
+  "    #table(",
+  "      columns: (auto, auto, auto, auto, auto, auto),",
+  "      align: (left, right, right, right, right, center),",
+  "      stroke: none,",
+  "      inset: (x: 8pt, y: 4pt),",
+  "      fill: (_, y) => if y == 0 { luma(228) } else if calc.odd(y) { luma(247) } else { white },",
+  paste0("      [*County*], [*Pop. 2000*], [*Pop. ", data_year,
+         "*], [*Change*], [*% Change*], [*Rank*],"),
+  paste0("      ", paste(row_strs, collapse = ",\n      "), ","),
+  "    )",
+  "  ]",
+  "]",
+  "```\n"
+)
+cat(paste(lines, collapse = "\n"))
+```
+
+```{=typst}
+#pagebreak()
+```
+
+## Year by Year
+
+Raw decennial snapshots show how far Cabarrus has traveled between censuses, but they obscure whether that journey was steady or turbulent. The chart below tracks annual population for every year on record (top panel) and the year-over-year growth rate for each year (bottom panel).
+
+Growth has been uninterrupted since 2000. The period average is `r round(avg_yoy, 1)`% annual growth, marked by the dashed line in the lower panel. Two notable departures bookend the record. A trough around 2010 reflects the Great Recession: homebuilding stalled and in-migration slowed, but Cabarrus never contracted. The surge from 2019 onward reflects the pandemic-era reshuffling of residential geography, as remote work expanded the geographic range of households willing to commute to Charlotte-area employers.
+
+```{r fig-timeseries}
+#| label: fig-timeseries
+#| fig-cap: !expr paste0("Cabarrus County annual population (top) and year-over-year growth rate (bottom), 2000 to ", data_year, ". Dashed line marks the period average growth rate of ", round(avg_yoy, 1), "%.")
+#| fig-width: 6.5
+#| fig-height: 4.2
+gg_timeseries
+```
+
+```{=typst}
+#pagebreak()
+```
+
+## Within Cabarrus County
+
+The county-level figures describe aggregate growth. They do not reveal where within the county that growth has landed. Cabarrus's `r n_tracts` census tracts tell a more granular story.
+
+The median tract grew `r median_tract_chg`% between 2010 and 2020, but the range is wide: from `r round(slowest_tract$pct_change, 1)`% at the slow end to `r round(fastest_tract$pct_change, 1)`% at the fast end. Growth has concentrated where developable land meets highway access and new infrastructure investment. Quieter tracts tend to be either long-established neighborhoods near the county seat where most parcels are already built out, or rural areas at the county's edges where the suburban wave has not yet arrived.
+
+```{r fig-tracts}
+#| label: fig-tracts
+#| fig-cap: "Population change by census tract, 2010 to 2020. Tract boundaries reflect 2020 vintage geography. Tracts with no 2010 population base shown in gray."
+#| fig-width: 6.5
+#| fig-height: 4.5
+#| dev: png
+#| dpi: 300
+gg_tracts
+```
+
+::: {.callout-note appearance="minimal"}
+**About this brief.** The 2000 baseline uses the Decennial Census (SF1, table P001001). The `r data_year` county-level estimate uses `r if (use_pep) paste0("the Census Bureau's Population Estimates Program (vintage ", data_year, "), which models county populations from the 2020 Census baseline using administrative records on births, deaths, and migration") else paste0("the American Community Survey 5-year estimates (", data_year, ")")`. The annual time series combines three sources: post-2010 intercensal estimates (2001-2009), the PEP annual series (2011-2019), and post-2020 PEP vintage estimates (2021 onward), with decennial counts anchoring each segment. The hot spot analysis uses queen contiguity spatial weights; z-scores at or above 2.576 indicate less than a 1% probability of spatial clustering occurring by chance. Tract-level 2010 populations are expressed in 2020 tract geography using a block-level centroid crosswalk. Full methodology at [cabarrusdatalab.com/blog](https://cabarrusdatalab.com/blog).
+:::

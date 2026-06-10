@@ -1,0 +1,255 @@
+---
+title: "Cabarrus County's Vanishing Farmland"
+subtitle: "A decade of land cover change and what it means for the county's future"
+description: "National Land Cover Database records show that Cabarrus County has steadily lost farmland and forest to development between 2011 and 2021, as the county's rapid suburban expansion reshaped the landscape."
+categories: [land-use, farmland, spatial-analysis]
+image: "../img/cabarrusdatalab.png"
+format:
+  typst:
+    fontsize: "10pt"
+    margin:
+      top: "2.6cm"
+      bottom: "2cm"
+      left: "1.8cm"
+      right: "1.8cm"
+    template-partials:
+      - typst-template.typ
+    include-in-header:
+      text: |
+        #let cdl-blue   = rgb("#0336ff")
+        #let cdl-dark   = rgb("#22211d")
+        #let cdl-light  = rgb("#dce8ff")
+        #let cdl-orange = rgb("#e05c2a")
+
+        // Page chrome: header and footer
+        #set page(
+          paper: "us-letter",
+          header: [
+            #set text(size: 9pt)
+            #grid(
+              columns: (1fr, auto),
+              column-gutter: 1em,
+              [
+                #text(fill: cdl-blue, weight: "bold")[Cabarrus Data Lab]
+                #h(0.4em)#text(fill: luma(80))[| Data Brief \#3]
+              ],
+              text(fill: luma(130))[April 2026]
+            )
+            #v(-0.5em)
+            #line(length: 100%, stroke: cdl-blue + 1.5pt)
+          ],
+          footer: context [
+            #line(length: 100%, stroke: luma(210) + 0.5pt)
+            #v(-0.4em)
+            #set text(size: 7.5pt, fill: luma(130))
+            #grid(
+              columns: (1fr, auto),
+              [cabarrusdatalab.com #h(1em) Sources: USDA NASS Cropland Data Layer (CropScape); U.S. Census Bureau, TIGER/Line],
+              [#counter(page).display()]
+            )
+          ]
+        )
+
+        // Heading styles
+        #show heading.where(level: 2): it => block(above: 0.9em, below: 0.35em)[
+          #text(fill: cdl-blue, size: 11pt, weight: "bold")[#it.body]
+        ]
+
+        // Stat highlight box: fixed height so all three boxes match
+        #let statbox(number, label) = block(
+          width: 100%,
+          height: 2.2cm,
+          fill: cdl-light,
+          stroke: (left: cdl-blue + 3pt),
+          inset: (x: 10pt, y: 8pt),
+          radius: (right: 4pt),
+        )[
+          #text(fill: cdl-blue, size: 20pt, weight: "bold")[#number]
+          #v(-0.2em)
+          #set text(size: 8pt, fill: cdl-dark)
+          #label
+        ]
+
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(tidyverse)
+library(scales)
+library(duckdb)
+library(DBI)
+```
+
+```{r load-data}
+con        <- dbConnect(duckdb(),
+               here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+               read_only = TRUE)
+area_df    <- dbReadTable(con, "nlcd_landcover_area")
+map_raw    <- dbReadTable(con, "nlcd_landcover_map")
+cab_coords <- dbReadTable(con, "nlcd_boundary_coords")
+dbDisconnect(con, shutdown = TRUE)
+
+class_levels <- c("Water/Barren", "Developed", "Forest",
+                  "Shrub/Grassland", "Farmland", "Wetland")
+
+map_df <- map_raw |>
+  mutate(
+    class = factor(class, levels = class_levels),
+    year  = factor(year,  levels = sort(unique(year)))
+  )
+
+yr_first <- min(area_df$year)
+yr_last  <- max(area_df$year)
+
+farm_first   <- area_df |> filter(class == "Farmland",  year == yr_first) |> pull(acres)
+farm_last    <- area_df |> filter(class == "Farmland",  year == yr_last)  |> pull(acres)
+dev_first    <- area_df |> filter(class == "Developed", year == yr_first) |> pull(acres)
+dev_last     <- area_df |> filter(class == "Developed", year == yr_last)  |> pull(acres)
+
+farm_lost    <- round(farm_first - farm_last)
+farm_pct     <- round((farm_first - farm_last) / farm_first * 100)
+dev_added    <- round(dev_last - dev_first)
+farm_first_r <- round(farm_first)
+farm_last_r  <- round(farm_last)
+
+class_colors <- c(
+  "Water/Barren"    = "#c8c8c8",
+  "Developed"       = "#d73027",
+  "Forest"          = "#4a8c5c",
+  "Shrub/Grassland" = "#c3dba3",
+  "Farmland"        = "#d4a72c",
+  "Wetland"         = "#7ac8e0"
+)
+
+map_theme <- theme_void(base_size = 8) +
+  theme(
+    plot.background  = element_rect(fill = "white", color = NA),
+    legend.position  = "bottom",
+    legend.title     = element_text(size = 7, face = "bold"),
+    legend.text      = element_text(size = 7),
+    legend.key.size  = unit(0.4, "cm"),
+    strip.text       = element_text(face = "bold", size = 8.5, color = "#22211d",
+                                    margin = margin(b = 3)),
+    plot.title       = element_text(face = "bold", size = 8.5, color = "#22211d",
+                                    margin = margin(b = 4)),
+    plot.caption     = element_text(color = "gray50", size = 6.5, hjust = 0,
+                                    margin = margin(t = 4))
+  )
+
+brief_theme <- theme_minimal(base_size = 9) +
+  theme(
+    plot.background    = element_rect(fill = "white", color = NA),
+    panel.background   = element_rect(fill = "white", color = NA),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.x = element_blank(),
+    plot.caption       = element_text(color = "gray50", size = 7, hjust = 0,
+                                      margin = margin(t = 4)),
+    axis.text          = element_text(color = "#22211d"),
+    legend.position    = "bottom",
+    legend.text        = element_text(size = 8)
+  )
+```
+
+Between `r yr_first` and `r yr_last`, Cabarrus County converted roughly `r comma(farm_lost)` acres of farmland to other uses, shrinking its agricultural land base from `r comma(farm_first_r)` acres to `r comma(farm_last_r)` acres. Development absorbed most of that loss, adding `r comma(dev_added)` acres of roads, subdivisions, and commercial land over the same period. The same suburban expansion that pushed Cabarrus into North Carolina's top growth rankings (Data Brief No. 1) has steadily consumed the county's fields.
+
+```{r stat-boxes}
+#| results: asis
+
+lines <- c(
+  "\n```{=typst}",
+  "#v(0.4em)",
+  "#grid(",
+  "  columns: (1fr, 1fr, 1fr),",
+  "  column-gutter: 0.8em,",
+  paste0('  statbox([-', comma(farm_lost), ' ac], [Farmland lost ', yr_first,
+         ' to ', yr_last, ', from ', comma(farm_first_r), ' acres to ',
+         comma(farm_last_r), ' acres]),'),
+  paste0('  statbox([-', farm_pct, '%], [Share of ', yr_first, ' farmland',
+         ' converted to other uses by ', yr_last, ']),'),
+  paste0('  statbox([+', comma(dev_added), ' ac], [Developed land added ',
+         yr_first, ' to ', yr_last, ', accounting for most of the farmland conversion])'),
+  ")",
+  "#v(0.6em)",
+  "```\n"
+)
+cat(paste(lines, collapse = "\n"))
+```
+
+## Land Cover Change Across Cabarrus County, `r yr_first`-`r yr_last`
+
+```{r land-cover-maps}
+#| fig-width: 7
+#| fig-height: 3.0
+#| dev: png
+#| dpi: 300
+
+ggplot(map_df, aes(x = x, y = y, fill = class)) +
+  geom_raster() +
+  geom_path(
+    data        = cab_coords,
+    aes(x = x, y = y, group = interaction(ring, part)),
+    color       = "#22211d",
+    linewidth   = 0.6,
+    inherit.aes = FALSE
+  ) +
+  facet_wrap(~year, nrow = 1) +
+  scale_fill_manual(
+    values = class_colors,
+    name   = "Land cover",
+    guide  = guide_legend(nrow = 1, byrow = TRUE,
+                          keywidth = 0.5, keyheight = 0.4)
+  ) +
+  coord_equal(expand = FALSE) +
+  labs(
+    title   = "Reclassified CDL land cover (30m pixels, aggregated to 150m for display)",
+    caption = "Source: USDA NASS Cropland Data Layer via CropScape. County boundary: U.S. Census Bureau TIGER/Line."
+  ) +
+  map_theme
+```
+
+## What Was Lost and What Was Gained, `r yr_first`-`r yr_last`
+
+```{r change-chart}
+#| fig-width: 7
+#| fig-height: 2.4
+
+change_df <- area_df |>
+  filter(year %in% c(yr_first, yr_last)) |>
+  pivot_wider(names_from = year, values_from = acres) |>
+  mutate(
+    change    = .data[[as.character(yr_last)]] - .data[[as.character(yr_first)]],
+    direction = if_else(change >= 0, "Gained", "Lost"),
+    class     = fct_reorder(class, change)
+  ) |>
+  filter(class != "Other/Water")
+
+ggplot(change_df, aes(x = change, y = class, fill = direction)) +
+  geom_col(width = 0.65) +
+  geom_vline(xintercept = 0, color = "#22211d", linewidth = 0.4) +
+  scale_fill_manual(
+    values = c("Gained" = "#d73027", "Lost" = "#d4a72c"),
+    name   = NULL
+  ) +
+  scale_x_continuous(
+    labels = function(x) paste0(ifelse(x >= 0, "+", ""), comma(round(x)), " ac")
+  ) +
+  labs(
+    x       = paste0("Change in acres, ", yr_first, " to ", yr_last),
+    y       = NULL,
+    caption = paste0("Other/Water class excluded. Source: USDA NASS Cropland Data Layer ",
+                     yr_first, " and ", yr_last, ".")
+  ) +
+  brief_theme
+```
+
+::: {.callout-important appearance="minimal"}
+**The development equation.** Every acre of developed land that appeared in Cabarrus County between `r yr_first` and `r yr_last` came from somewhere. Farmland, forest, and shrub/grassland all contributed to the conversion. This pattern mirrors the county's population trajectory documented in Data Brief No. 1: the growth that made Cabarrus a top-ranked hot spot for in-migration was built, in part, on converted open and agricultural land.
+:::
+
+::: {.callout-note appearance="minimal"}
+**About this brief.** Land cover data are from the USGS/MRLC National Land Cover Database (NLCD), a 30-meter-resolution product derived from Landsat imagery using consistent methodology across all release years. Unlike the USDA Cropland Data Layer, which is calibrated specifically for agricultural classification, NLCD uses a unified classification framework that produces reliable and comparable estimates for all land cover types across years. Years used: 2011, 2016, 2021. NLCD classes were grouped into six categories: Farmland (classes 81-82, Pasture/Hay and Cultivated Crops), Developed (21-24, Open Space through High Intensity), Forest (41-43, Deciduous/Evergreen/Mixed), Shrub/Grassland (52, 71), Wetland (90, 95), and Water/Barren (11, 12, 31). Area estimates are based on pixel counts multiplied by cell area (900 m² per pixel) and converted to acres. Data were retrieved programmatically via the MRLC Web Coverage Service. County boundary from U.S. Census Bureau TIGER/Line shapefiles via the `tigris` R package.
+:::
+

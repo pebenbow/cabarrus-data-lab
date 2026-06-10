@@ -1,0 +1,59 @@
+table: nc_population_growth
+title: "NC County Population Growth"
+description: >
+  Population counts, growth rates, and Getis-Ord Gi* spatial hot spot
+  classifications for all 100 North Carolina counties. Growth is measured
+  from the 2000 Decennial Census to the 2023 Population Estimates Program.
+source: >
+  U.S. Census Bureau: Decennial Census 2000 (SF1), 2010 (SF1), 2020 (PL 94-171),
+  and Population Estimates Program (PEP) Vintage 2023. Spatial weights computed
+  via queen contiguity using the spdep R package.
+columns:
+  - name: GEOID
+    type: character
+    description: "5-digit FIPS county code (2-digit state + 3-digit county)."
+  - name: county_name
+    type: character
+    description: "County name, with ' County, North Carolina' removed."
+  - name: pop_2000
+    type: integer
+    description: "Resident population, April 1, 2000 Decennial Census (SF1, table P001001)."
+  - name: pop_2010
+    type: integer
+    description: "Resident population, April 1, 2010 Decennial Census (SF1, table P001001)."
+  - name: pop_2020
+    type: integer
+    description: "Resident population, April 1, 2020 Decennial Census (PL 94-171, table P1_001N). Subject to differential privacy noise."
+  - name: pop_recent
+    type: integer
+    description: "Most recent population estimate. July 1, 2023 (PEP Vintage 2023) or ACS 5-Year 2023 estimate (fallback)."
+  - name: data_year
+    type: integer
+    description: "Year of the pop_recent estimate (2023)."
+  - name: source
+    type: character
+    description: "Source of pop_recent: 'PEP' (Population Estimates Program) or 'ACS5' (ACS 5-Year)."
+  - name: pct_growth
+    type: numeric
+    description: "Percentage population change from 2000 to pop_recent year. Formula: (pop_recent - pop_2000) / pop_2000 * 100."
+  - name: pct_00_10
+    type: numeric
+    description: "Percentage population change, 2000 to 2010."
+  - name: pct_10_20
+    type: numeric
+    description: "Percentage population change, 2010 to 2020."
+  - name: pct_20_now
+    type: numeric
+    description: "Percentage population change, 2020 to pop_recent year."
+  - name: abs_growth
+    type: integer
+    description: "Absolute population change from 2000 to pop_recent year (persons added or lost)."
+  - name: rank_growth
+    type: integer
+    description: "Rank among 100 NC counties by pct_growth, descending (1 = fastest-growing)."
+  - name: gi_star
+    type: numeric
+    description: "Getis-Ord Gi* z-score using queen-contiguity spatial weights with self-inclusion (Ord & Getis 1995). Values above 1.645 / 1.960 / 2.576 indicate statistically significant high-growth clusters at 90% / 95% / 99% confidence."
+  - name: spot_class
+    type: character
+    description: "Categorical classification derived from gi_star: 'Hot Spot (99%/95%/90%)', 'Not Significant', or 'Cold Spot (90%/95%/99%)'."

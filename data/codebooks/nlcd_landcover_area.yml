@@ -1,0 +1,33 @@
+table: nlcd_landcover_area
+title: "Cabarrus County NLCD Land Cover Area"
+description: >
+  Estimated acreage of each land cover class within Cabarrus County for
+  NLCD release years 2011, 2016, and 2021. Pixel counts from the 30-meter
+  NLCD raster are multiplied by cell area (900 m² per pixel) and converted
+  to acres. Six original NLCD classes are grouped into broader categories
+  for cross-year comparability.
+source: >
+  USGS/MRLC National Land Cover Database (NLCD), 30-meter resolution,
+  retrieved via MRLC Web Coverage Service (WCS). County boundary from
+  U.S. Census Bureau TIGER/Line shapefiles (tigris R package, 2021 vintage).
+  NLCD uses consistent multi-date methodology designed for temporal comparison,
+  unlike the USDA Cropland Data Layer which is optimized for agricultural
+  classification only.
+columns:
+  - name: year
+    type: integer
+    description: "NLCD release year: 2011, 2016, or 2021."
+  - name: class
+    type: character
+    description: >
+      Grouped land cover class. Six categories derived from NLCD integer codes:
+      'Farmland' (codes 81-82: Pasture/Hay and Cultivated Crops),
+      'Developed' (21-24: Open Space through High Intensity),
+      'Forest' (41-43: Deciduous, Evergreen, Mixed Forest),
+      'Shrub/Grassland' (52, 71: Shrub/Scrub and Grassland/Herbaceous),
+      'Wetland' (90, 95: Woody and Emergent Herbaceous Wetlands),
+      'Water/Barren' (11, 12, 31: Open Water, Perennial Ice/Snow, Barren Land).
+      All unclassified pixels assigned to Water/Barren.
+  - name: acres
+    type: numeric
+    description: "Estimated acres of this class within the Cabarrus County boundary. Computed as pixel count * 900 m² / 4046.86 m² per acre."

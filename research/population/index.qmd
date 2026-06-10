@@ -1,0 +1,51 @@
+---
+title: "Population Growth"
+description: "Two decades of sustained growth make Cabarrus County one of North Carolina's fastest-expanding places. This topic traces the trajectory, quantifies the regional cluster, and asks what comes next."
+date: 2026-04-17
+author: Pete Benbow
+categories: [Population]
+image: ../../img/covers/population.png
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+library(duckdb); library(DBI); library(scales)
+con <- dbConnect(duckdb(),
+  here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+  read_only = TRUE)
+cab  <- dbGetQuery(con, "SELECT * FROM nc_population_growth WHERE GEOID = '37025'")
+n_nc <- dbGetQuery(con, "SELECT COUNT(*) AS n FROM nc_population_growth")$n
+dbDisconnect(con, shutdown = TRUE)
+```
+
+<p class="topic-eyebrow">Population Analysis</p>
+
+Between 2000 and `r cab$data_year`, Cabarrus County grew by `r round(cab$pct_growth)`%, adding more than `r comma(round(cab$abs_growth, -3))` residents to reach a population of `r comma(cab$pop_recent)`. That growth rate ranks `r scales::ordinal(cab$rank_growth)` among all `r n_nc` North Carolina counties. More telling than the raw rank is the spatial pattern: a Getis-Ord Gi* hot spot analysis confirms that Cabarrus is not an isolated spike but the core of a statistically significant regional growth cluster encompassing Mecklenburg, Union, and Iredell counties. The forces driving this growth, Charlotte's economic expansion and Cabarrus's relative affordability, show no structural sign of reversal.
+
+<div class="resource-list">
+<h3>Resources</h3>
+
+<div class="resource-item">
+  <span class="resource-type">Feature Story</span>
+  <a href="../../stories/population-growth.qmd">The Growth Engine: How Cabarrus County became one of the fastest-growing places in NC</a>
+</div>
+
+<div class="resource-item">
+  <span class="resource-type">Data Brief</span>
+  <a href="/data-briefs/0001-population-growth.pdf">Population Growth (PDF)</a>
+</div>
+
+<div class="resource-item">
+  <span class="resource-type">Methodology</span>
+  <a href="../../blog/posts/0004-population-brief-methodology.qmd">Behind the Numbers: How the Gi* Statistic Works</a>
+</div>
+
+<div class="resource-item">
+  <span class="resource-type">Dataset</span>
+  <a href="../../data/index.qmd#pop-growth">NC County Population Growth (browse &amp; download)</a>
+</div>
+
+</div>

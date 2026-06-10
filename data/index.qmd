@@ -1,0 +1,268 @@
+---
+title: "Data"
+description: "Browse and download the datasets behind our reports."
+page-layout: full
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(tidyverse)
+library(DT)
+library(duckdb)
+library(DBI)
+library(scales)
+library(yaml)
+
+con  <- dbConnect(duckdb(),
+          here::here("../cabarrus-data-pipeline/db/cabarrus.duckdb"),
+          read_only = TRUE)
+pop      <- dbReadTable(con, "nc_population_growth")
+housing  <- dbReadTable(con, "cabarrus_housing")
+landcover <- dbReadTable(con, "nlcd_landcover_area")
+dbDisconnect(con, shutdown = TRUE)
+
+dt_buttons <- function(filename, title) {
+  list(
+    list(extend = "csv",   filename = filename, text = "Download CSV"),
+    list(extend = "excel", filename = filename, title = title,
+         text = "Download Excel")
+  )
+}
+
+make_dt <- function(df, filename, title, ...) {
+  datatable(
+    df,
+    extensions = "Buttons",
+    filter     = "top",
+    rownames   = FALSE,
+    options    = list(
+      dom        = "Bfrtip",
+      buttons    = dt_buttons(filename, title),
+      pageLength = 25,
+      scrollX    = TRUE
+    ),
+    ...
+  )
+}
+
+codebook_html <- function(rel_path) {
+  cb   <- yaml::read_yaml(here::here(rel_path))
+  rows <- map_chr(cb$columns, function(x) {
+    paste0(
+      "<tr>",
+      "<td><code>", x$name, "</code></td>",
+      "<td style='white-space:nowrap'>", x$type, "</td>",
+      "<td>", x$description, "</td>",
+      "</tr>"
+    )
+  })
+  cat(paste0(
+    '<details class="codebook">',
+    '<summary>Codebook: ', cb$title,
+      ' (', length(cb$columns), ' columns)</summary>',
+    '<p class="codebook-desc">', cb$description, '</p>',
+    '<p class="codebook-desc"><strong>Source:</strong> ', cb$source, '</p>',
+    '<table class="table table-sm table-bordered">',
+    '<thead><tr>',
+    '<th>Column</th><th>Type</th><th>Description</th>',
+    '</tr></thead><tbody>',
+    paste(rows, collapse = "\n"),
+    '</tbody></table></details>'
+  ))
+}
+```
+
+Each dataset is derived from public sources and powers a specific report. Use the column search boxes to filter, click any header to sort, and use the export buttons to download.
+
+::: {.panel-tabset}
+
+## Population Growth {#pop-growth}
+
+**Source:** U.S. Census Bureau, Decennial Census 2000/2010/2020 and Population Estimates Program (PEP) Vintage 2023.
+**Used in:** [Topic: Population Growth](/topics/population/) | [Data Brief #1](/data-briefs/0001-population-growth.pdf)
+
+::: {.panel-tabset}
+
+### County Growth Rates {#pop-counties}
+
+Growth rates, decade-by-decade breakdowns, and hot spot classifications for all 100 NC counties.
+
+```{r pop-counties}
+pop |>
+  arrange(rank_growth) |>
+  mutate(
+    pct_growth  = round(pct_growth,  1),
+    pct_00_10   = round(pct_00_10,   1),
+    pct_10_20   = round(pct_10_20,   1),
+    pct_20_now  = round(pct_20_now,  1),
+    gi_star     = round(gi_star,     3),
+    abs_growth  = comma(abs_growth,  accuracy = 1),
+    pop_2000    = comma(pop_2000,    accuracy = 1),
+    pop_2010    = comma(pop_2010,    accuracy = 1),
+    pop_2020    = comma(pop_2020,    accuracy = 1),
+    pop_recent  = comma(pop_recent,  accuracy = 1)
+  ) |>
+  select(
+    County        = county_name,
+    `Pop. 2000`   = pop_2000,
+    `Pop. 2010`   = pop_2010,
+    `Pop. 2020`   = pop_2020,
+    `Pop. 2023`   = pop_recent,
+    `Change`      = abs_growth,
+    `% Growth`    = pct_growth,
+    `% 00-10`     = pct_00_10,
+    `% 10-20`     = pct_10_20,
+    `% 20-Now`    = pct_20_now,
+    `Rank`        = rank_growth,
+    `Gi* Score`   = gi_star,
+    `Hot Spot`    = spot_class
+  ) |>
+  make_dt("nc_population_growth", "NC Population Growth")
+```
+
+```{r pop-codebook}
+#| results: asis
+codebook_html("data/codebooks/nc_population_growth.yml")
+```
+
+### Top 10 Fastest-Growing {#pop-top10}
+
+The ten fastest-growing NC counties by percentage change, 2000-2023.
+
+```{r pop-top10}
+pop |>
+  slice_min(rank_growth, n = 10) |>
+  arrange(rank_growth) |>
+  mutate(
+    pct_growth = round(pct_growth, 1),
+    abs_growth = comma(abs_growth, accuracy = 1),
+    pop_2000   = comma(pop_2000,   accuracy = 1),
+    pop_recent = comma(pop_recent, accuracy = 1)
+  ) |>
+  select(
+    Rank         = rank_growth,
+    County       = county_name,
+    `Pop. 2000`  = pop_2000,
+    `Pop. 2023`  = pop_recent,
+    `Change`     = abs_growth,
+    `% Growth`   = pct_growth
+  ) |>
+  make_dt("nc_top10_growth", "NC Top 10 Fastest-Growing Counties")
+```
+
+:::
+
+## Housing Affordability {#housing}
+
+**Source:** U.S. Census Bureau, American Community Survey (ACS) 1-Year Estimates, 2006-2023 (no 2020 release).
+**Used in:** [Topic: Housing Affordability](/topics/housing/) | [Data Brief #2](/data-briefs/0002-home-prices-wages.pdf)
+
+::: {.panel-tabset}
+
+### Nominal Values {#housing-nominal}
+
+Raw dollar figures for home values, rents, and household income by year.
+
+```{r housing-nominal}
+housing |>
+  select(year, home_value, gross_rent, annual_rent, med_income,
+         home_to_income, rent_to_income) |>
+  mutate(
+    home_value     = dollar(home_value,  accuracy = 1000),
+    gross_rent     = dollar(gross_rent,  accuracy = 10),
+    annual_rent    = dollar(annual_rent, accuracy = 100),
+    med_income     = dollar(med_income,  accuracy = 1000),
+    home_to_income = round(home_to_income, 2),
+    rent_to_income = round(rent_to_income, 2)
+  ) |>
+  select(
+    Year                = year,
+    `Median Home Value` = home_value,
+    `Monthly Rent`      = gross_rent,
+    `Annual Rent`       = annual_rent,
+    `Median Income`     = med_income,
+    `Price / Income`    = home_to_income,
+    `Rent / Income`     = rent_to_income
+  ) |>
+  make_dt("cabarrus_housing_nominal", "Cabarrus Housing Nominal Values")
+```
+
+**Notes:** All values are nominal and not adjusted for inflation. Price/Income above 3.0 is conventionally considered unaffordable; Rent/Income above 0.30 indicates rent burden.
+
+```{r housing-codebook}
+#| results: asis
+codebook_html("data/codebooks/cabarrus_housing.yml")
+```
+
+### Indexed (2006 = 100) {#housing-indexed}
+
+All series indexed to 2006 to show relative growth rates.
+
+```{r housing-indexed}
+housing |>
+  select(year, idx_home, idx_rent, idx_income) |>
+  mutate(across(starts_with("idx_"), \(x) round(x, 1))) |>
+  select(
+    Year           = year,
+    `Home Value`   = idx_home,
+    `Annual Rent`  = idx_rent,
+    `Income`       = idx_income
+  ) |>
+  make_dt("cabarrus_housing_indexed", "Cabarrus Housing Index (2006=100)")
+```
+
+**Notes:** Values above 100 indicate growth relative to 2006.
+
+:::
+
+## Land Cover {#land-cover}
+
+**Source:** USGS/MRLC National Land Cover Database (NLCD), 30-meter resolution, years 2011, 2016, 2021.
+**Used in:** [Topic: Vanishing Farmland](/topics/farmland/) | [Data Brief #3](/data-briefs/0003-vanishing-farmland.pdf)
+
+### Acreage by Class and Year {#landcover-area}
+
+Estimated acres of each land cover class within Cabarrus County.
+
+```{r landcover-area}
+landcover |>
+  mutate(acres = round(acres, 1)) |>
+  pivot_wider(names_from = year, values_from = acres,
+              names_prefix = "") |>
+  arrange(class) |>
+  select(
+    `Land Cover Class` = class,
+    `2011`             = `2011`,
+    `2016`             = `2016`,
+    `2021`             = `2021`
+  ) |>
+  make_dt("cabarrus_nlcd_landcover", "Cabarrus County NLCD Land Cover (acres)")
+```
+
+**Notes:** Pixel counts multiplied by 900 m² per cell and converted to acres (1 acre = 4,046.86 m²). The NLCD uses consistent multi-date methodology designed for temporal comparison; small year-to-year fluctuations reflect classification uncertainty, not actual land change.
+
+```{r landcover-codebook}
+#| results: asis
+codebook_html("data/codebooks/nlcd_landcover_area.yml")
+```
+
+:::
+
+```{=html}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const hash = window.location.hash;
+  if (!hash) return;
+  const target = document.querySelector('[data-bs-target="' + hash + '"]');
+  if (target) {
+    bootstrap.Tab.getOrCreateInstance(target).show();
+    setTimeout(function () {
+      document.querySelector(hash)?.scrollIntoView({ behavior: "smooth" });
+    }, 150);
+  }
+});
+</script>
+```

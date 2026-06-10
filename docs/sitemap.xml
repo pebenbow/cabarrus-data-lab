@@ -1,8 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>https://cabarrusdatalab.com/stories/population-growth.html</loc>
+    <lastmod>2026-05-18T21:42:29.068Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/research/population/index.html</loc>
+    <lastmod>2026-05-08T18:21:53.336Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/research/housing/index.html</loc>
+    <lastmod>2026-05-08T18:21:59.107Z</lastmod>
+  </url>
+  <url>
     <loc>https://cabarrusdatalab.com/index.html</loc>
-    <lastmod>2026-02-15T17:47:44.696Z</lastmod>
+    <lastmod>2026-05-08T18:21:42.316Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/blog/posts/0003-housing-brief-methodology.html</loc>
+    <lastmod>2026-04-16T22:43:10.306Z</lastmod>
   </url>
   <url>
     <loc>https://cabarrusdatalab.com/blog/posts/0001-announcing-cdl.html</loc>
@@ -10,7 +26,7 @@
   </url>
   <url>
     <loc>https://cabarrusdatalab.com/about.html</loc>
-    <lastmod>2026-02-15T16:26:03.871Z</lastmod>
+    <lastmod>2026-05-08T14:04:33.963Z</lastmod>
   </url>
   <url>
     <loc>https://cabarrusdatalab.com/blog/index.html</loc>
@@ -19,5 +35,25 @@
   <url>
     <loc>https://cabarrusdatalab.com/blog/posts/0002-intro.html</loc>
     <lastmod>2026-02-15T17:44:47.506Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/blog/posts/0004-population-brief-methodology.html</loc>
+    <lastmod>2026-05-18T21:43:06.226Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/data/index.html</loc>
+    <lastmod>2026-05-08T14:18:40.993Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/research/farmland/index.html</loc>
+    <lastmod>2026-05-08T18:22:02.459Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/research/index.html</loc>
+    <lastmod>2026-05-08T20:45:51.971Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/stories/index.html</loc>
+    <lastmod>2026-04-17T11:07:48.354Z</lastmod>
   </url>
 </urlset>

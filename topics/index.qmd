@@ -1,0 +1,14 @@
+---
+title: "Research Topics"
+description: "Data-driven analysis of the social and economic forces shaping Cabarrus County."
+listing:
+  type: grid
+  grid-columns: 3
+  contents:
+    - population/index.qmd
+    - housing/index.qmd
+    - farmland/index.qmd
+  fields: [image, title, description, categories, date]
+  image-height: 160px
+  sort: "date desc"
+---
