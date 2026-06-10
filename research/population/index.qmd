@@ -1,4 +1,5 @@
 ---
+draft: true
 title: "Population Growth"
 description: "Two decades of sustained growth make Cabarrus County one of North Carolina's fastest-expanding places. This topic traces the trajectory, quantifies the regional cluster, and asks what comes next."
 date: 2026-04-17

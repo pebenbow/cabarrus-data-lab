@@ -1,4 +1,5 @@
 ---
+draft: true
 title: "Housing Affordability"
 description: "Home values and rents in Cabarrus County have outpaced income growth since 2006, compressing affordability even as the county's population surge continues to attract new residents."
 date: 2026-04-17

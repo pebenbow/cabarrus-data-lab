@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://cabarrusdatalab.com/stories/population-growth.html</loc>
-    <lastmod>2026-05-18T21:42:29.068Z</lastmod>
-  </url>
-  <url>
-    <loc>https://cabarrusdatalab.com/research/population/index.html</loc>
-    <lastmod>2026-05-08T18:21:53.336Z</lastmod>
-  </url>
-  <url>
-    <loc>https://cabarrusdatalab.com/research/housing/index.html</loc>
-    <lastmod>2026-05-08T18:21:59.107Z</lastmod>
-  </url>
-  <url>
     <loc>https://cabarrusdatalab.com/index.html</loc>
     <lastmod>2026-05-08T18:21:42.316Z</lastmod>
   </url>
@@ -45,15 +33,19 @@
     <lastmod>2026-05-08T14:18:40.993Z</lastmod>
   </url>
   <url>
-    <loc>https://cabarrusdatalab.com/research/farmland/index.html</loc>
-    <lastmod>2026-05-08T18:22:02.459Z</lastmod>
+    <loc>https://cabarrusdatalab.com/research/index.html</loc>
+    <lastmod>2026-06-10T11:56:10.779Z</lastmod>
   </url>
   <url>
-    <loc>https://cabarrusdatalab.com/research/index.html</loc>
-    <lastmod>2026-05-08T20:45:51.971Z</lastmod>
+    <loc>https://cabarrusdatalab.com/research/population/index.html</loc>
+    <lastmod>2026-06-10T11:56:11.749Z</lastmod>
+  </url>
+  <url>
+    <loc>https://cabarrusdatalab.com/stories/population-growth.html</loc>
+    <lastmod>2026-06-10T11:55:58.898Z</lastmod>
   </url>
   <url>
     <loc>https://cabarrusdatalab.com/stories/index.html</loc>
-    <lastmod>2026-04-17T11:07:48.354Z</lastmod>
+    <lastmod>2026-06-10T11:56:12.563Z</lastmod>
   </url>
 </urlset>
