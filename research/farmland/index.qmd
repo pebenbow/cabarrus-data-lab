@@ -1,5 +1,4 @@
 ---
-draft: true
 title: "Vanishing Farmland"
 description: "Between 2011 and 2021, Cabarrus County steadily converted farmland and forest to developed land. National Land Cover Database records put numbers on a transformation visible from any county road."
 date: 2026-04-17

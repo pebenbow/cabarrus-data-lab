@@ -302,7 +302,7 @@ cat(paste(lines, collapse = "\n"))
 
 - **Within-county variation (Figure 4).** Growth is uneven across Cabarrus's `r n_tracts` census tracts. The median tract grew **`r median_tract_chg`%** between 2010 and 2020, but individual tracts range from `r round(slowest_tract$pct_change, 1)`% to `r round(fastest_tract$pct_change, 1)`%, reflecting where developable land and highway access overlap.
 
-```{r fig-choropleth}
+```{r}
 #| label: fig-choropleth
 #| fig-cap: !expr paste0("Population growth rate by county, 2000 to ", data_year, ". Cabarrus County outlined in dark.")
 #| fig-width: 6.5
@@ -324,7 +324,7 @@ A hot spot analysis tests whether Cabarrus's growth is an isolated spike or part
 
 The following figure and table show where Cabarrus sits within the full NC distribution.
 
-```{r fig-hotspot}
+```{r}
 #| label: fig-hotspot
 #| fig-cap: "Hot spot classification based on spatial clustering of county-level growth rates. Cabarrus County outlined in dark."
 #| fig-width: 6.5
@@ -388,7 +388,7 @@ Raw decennial snapshots show how far Cabarrus has traveled between censuses, but
 
 Growth has been uninterrupted since 2000. The period average is `r round(avg_yoy, 1)`% annual growth, marked by the dashed line in the lower panel. Two notable departures bookend the record. A trough around 2010 reflects the Great Recession: homebuilding stalled and in-migration slowed, but Cabarrus never contracted. The surge from 2019 onward reflects the pandemic-era reshuffling of residential geography, as remote work expanded the geographic range of households willing to commute to Charlotte-area employers.
 
-```{r fig-timeseries}
+```{r}
 #| label: fig-timeseries
 #| fig-cap: !expr paste0("Cabarrus County annual population (top) and year-over-year growth rate (bottom), 2000 to ", data_year, ". Dashed line marks the period average growth rate of ", round(avg_yoy, 1), "%.")
 #| fig-width: 6.5
@@ -406,7 +406,7 @@ The county-level figures describe aggregate growth. They do not reveal where wit
 
 The median tract grew `r median_tract_chg`% between 2010 and 2020, but the range is wide: from `r round(slowest_tract$pct_change, 1)`% at the slow end to `r round(fastest_tract$pct_change, 1)`% at the fast end. Growth has concentrated where developable land meets highway access and new infrastructure investment. Quieter tracts tend to be either long-established neighborhoods near the county seat where most parcels are already built out, or rural areas at the county's edges where the suburban wave has not yet arrived.
 
-```{r fig-tracts}
+```{r}
 #| label: fig-tracts
 #| fig-cap: "Population change by census tract, 2010 to 2020. Tract boundaries reflect 2020 vintage geography. Tracts with no 2010 population base shown in gray."
 #| fig-width: 6.5

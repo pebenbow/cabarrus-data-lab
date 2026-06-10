@@ -18,6 +18,13 @@ website:
     background: "#0f1012"
     foreground: "#ffffff"
 
+  announcement:
+    icon: info-circle
+    dismissable: false
+    content: "THIS SITE IS UNDER CONSTRUCTION"
+    type: danger
+    position: below-navbar
+
   navbar:
     right:
       - text: Home

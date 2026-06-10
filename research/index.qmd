@@ -1,5 +1,4 @@
 ---
-draft: true
 title: "Research"
 description: "Data-driven analysis of the social and economic forces shaping Cabarrus County."
 listing:
